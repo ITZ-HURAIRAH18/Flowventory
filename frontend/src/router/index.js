@@ -11,6 +11,13 @@ import BranchForm from '@/views/branches/BranchForm.vue'
 import ProductList from '@/views/products/ProductList.vue'
 import ProductForm from '@/views/products/ProductForm.vue'
 
+// ✅ Inventory Views
+import InventoryDashboard from '@/views/inventory/InventoryDashboard.vue'
+import StockAdd from '@/views/inventory/StockAdd.vue'
+import StockAdjust from '@/views/inventory/StockAdjust.vue'
+import StockTransfer from '@/views/inventory/StockTransfer.vue'
+import StockHistory from '@/views/inventory/StockHistory.vue'
+
 const routes = [
   { path: '/login', component: Login },
 
@@ -26,7 +33,9 @@ const routes = [
     meta: { requiresAuth: true, role: 'super_admin' }
   },
 
+  // =============================
   // Branch routes
+  // =============================
   {
     path: '/branches',
     component: BranchList,
@@ -48,7 +57,9 @@ const routes = [
     meta: { requiresAuth: true, role: 'super_admin' }
   },
 
-  // ✅ Product routes
+  // =============================
+  // Product routes
+  // =============================
   {
     path: '/products',
     component: ProductList,
@@ -62,6 +73,35 @@ const routes = [
   {
     path: '/products/:id/edit',
     component: ProductForm,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+
+  // =============================
+  // Inventory routes
+  // =============================
+  {
+    path: '/inventory',
+    component: InventoryDashboard,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/inventory/add',
+    component: StockAdd,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/inventory/adjust',
+    component: StockAdjust,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/inventory/transfer',
+    component: StockTransfer,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/inventory/history',
+    component: StockHistory,
     meta: { requiresAuth: true, role: 'super_admin' }
   }
 ]
