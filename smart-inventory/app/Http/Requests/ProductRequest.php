@@ -19,7 +19,7 @@ class ProductRequest extends FormRequest
             'cost_price' => 'required|numeric|min:0',
             'sale_price' => 'required|numeric|min:0',
             'tax_percentage' => 'required|numeric|min:0|max:100',
-            'status' => 'required|boolean'
+            'status' => 'required|in:active,inactive'
         ];
     }
 }
