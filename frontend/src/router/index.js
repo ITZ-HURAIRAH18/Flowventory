@@ -3,27 +3,30 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Login from '@/views/Login.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import AdminPanel from '@/views/AdminPanel.vue'
-import BranchList from '@/views/branches/BranchList.vue'      // 👈 Branch list view
-import BranchDashboard from '@/views/branches/BranchDashboard.vue' // 👈 Branch dashboard view
-import BranchForm from '@/views/branches/BranchForm.vue'      // 👈 Optional for standalone form
+
+import BranchList from '@/views/branches/BranchList.vue'
+import BranchDashboard from '@/views/branches/BranchDashboard.vue'
+import BranchForm from '@/views/branches/BranchForm.vue'
+
+import ProductList from '@/views/products/ProductList.vue'
+import ProductForm from '@/views/products/ProductForm.vue'
 
 const routes = [
-  {
-    path: '/login',
-    component: Login
-  },
+  { path: '/login', component: Login },
+
   {
     path: '/dashboard',
     component: Dashboard,
     meta: { requiresAuth: true }
   },
-  // 🔐 SUPER ADMIN ONLY ROUTE
+
   {
     path: '/admin',
     component: AdminPanel,
     meta: { requiresAuth: true, role: 'super_admin' }
   },
-  // 🔐 BRANCH MANAGEMENT (Admin only)
+
+  // Branch routes
   {
     path: '/branches',
     component: BranchList,
@@ -43,6 +46,23 @@ const routes = [
     path: '/branches/:id/edit',
     component: BranchForm,
     meta: { requiresAuth: true, role: 'super_admin' }
+  },
+
+  // ✅ Product routes
+  {
+    path: '/products',
+    component: ProductList,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/products/create',
+    component: ProductForm,
+    meta: { requiresAuth: true, role: 'super_admin' }
+  },
+  {
+    path: '/products/:id/edit',
+    component: ProductForm,
+    meta: { requiresAuth: true, role: 'super_admin' }
   }
 ]
 
@@ -55,12 +75,10 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const user = JSON.parse(localStorage.getItem('user'))
 
-  // Not logged in
   if (to.meta.requiresAuth && !token) {
     return next('/login')
   }
 
-  // Role check
   if (to.meta.role) {
     if (!user || user.role.name !== to.meta.role) {
       alert("You don't have permission to access this page")
