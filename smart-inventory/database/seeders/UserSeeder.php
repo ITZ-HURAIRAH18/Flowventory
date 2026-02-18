@@ -1,4 +1,7 @@
-// database/seeders/UserSeeder.php
+<?php
+
+namespace Database\Seeders;
+
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Database\Seeder;
@@ -10,11 +13,13 @@ class UserSeeder extends Seeder
     {
         $adminRole = Role::where('name', 'super_admin')->first();
 
-        User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('password123'),
-            'role_id' => $adminRole->id,
-        ]);
+        User::firstOrCreate(
+            ['email' => 'admin@example.com'],
+            [
+                'name' => 'Admin User',
+                'password' => Hash::make('password123'),
+                'role_id' => $adminRole->id,
+            ]
+        );
     }
 }
