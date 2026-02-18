@@ -4,6 +4,9 @@ export default {
   getAll() {
     return api.get('/inventory')
   },
+  getProductsByBranch(branchId) {
+    return api.get(`/inventory/branch/${branchId}/products`)
+  },
   add(data) {
     return api.post('/inventory/add', data)
   },

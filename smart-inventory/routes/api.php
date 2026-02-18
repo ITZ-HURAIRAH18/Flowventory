@@ -32,9 +32,14 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::prefix('inventory')->group(function () {
     Route::get('/', [InventoryController::class,'index']);
     Route::get('/history', [InventoryController::class,'history']);
+    Route::get('/branch/{branchId}/products', [InventoryController::class,'productsByBranch']);
     Route::post('/add', [InventoryController::class,'add']);
     Route::post('/adjust', [InventoryController::class,'adjust']);
     Route::post('/transfer', [InventoryController::class,'transfer']);
 });
 
-Route::post('/orders', [OrderController::class, 'store']);
+use App\Http\Controllers\OrderController;
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/orders', [OrderController::class, 'store']);
+});

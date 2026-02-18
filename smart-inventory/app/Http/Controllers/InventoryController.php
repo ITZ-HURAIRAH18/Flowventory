@@ -40,6 +40,29 @@ class InventoryController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * Get products available at a specific branch (stock > 0)
+     */
+    public function productsByBranch($branchId)
+    {
+        $inventory = Inventory::with('product')
+            ->where('branch_id', $branchId)
+            ->where('quantity', '>', 0)
+            ->get();
+
+        $data = $inventory->map(function ($item) {
+            return [
+                'id' => $item->product->id,
+                'name' => $item->product->name,
+                'sale_price' => $item->product->sale_price,
+                'tax_percentage' => $item->product->tax_percentage,
+                'stock' => $item->quantity,
+            ];
+        });
+
+        return response()->json($data);
+    }
+
     public function add(Request $request)
     {
         $request->validate([
