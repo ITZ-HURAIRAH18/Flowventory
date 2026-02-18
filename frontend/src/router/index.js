@@ -18,6 +18,9 @@ import StockAdjust from '@/views/inventory/StockAdjust.vue'
 import StockTransfer from '@/views/inventory/StockTransfer.vue'
 import StockHistory from '@/views/inventory/StockHistory.vue'
 
+
+// ✅ Order Views
+import OrderCreate from '@/views/orders/OrderCreate.vue'
 const routes = [
   { path: '/login', component: Login },
 
@@ -103,7 +106,16 @@ const routes = [
     path: '/inventory/history',
     component: StockHistory,
     meta: { requiresAuth: true, role: 'super_admin' }
-  }
+  },
+
+  // =============================
+// Order routes
+// =============================
+{
+  path: '/orders/create',
+  component: OrderCreate,
+  meta: { requiresAuth: true, role: 'super_admin' }
+}
 ]
 
 const router = createRouter({

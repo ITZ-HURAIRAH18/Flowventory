@@ -36,3 +36,5 @@ Route::prefix('inventory')->group(function () {
     Route::post('/adjust', [InventoryController::class,'adjust']);
     Route::post('/transfer', [InventoryController::class,'transfer']);
 });
+
+Route::post('/orders', [OrderController::class, 'store']);

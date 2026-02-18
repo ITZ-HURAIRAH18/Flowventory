@@ -9,19 +9,18 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
- // database/migrations/xxxx_create_order_items_table.php
-public function up(): void
-{
-    Schema::create('order_items', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('order_id')->constrained()->cascadeOnDelete();
-        $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-        $table->integer('quantity');
-        $table->decimal('price', 10, 2);
-        $table->decimal('tax', 10, 2);
-        $table->timestamps();
-    });
-}
+    public function up(): void
+    {
+        Schema::create('order_items', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('order_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
+            $table->integer('quantity');
+            $table->decimal('price', 10, 2);
+            $table->decimal('tax', 10, 2);
+            $table->timestamps();
+        });
+    }
 
     /**
      * Reverse the migrations.
