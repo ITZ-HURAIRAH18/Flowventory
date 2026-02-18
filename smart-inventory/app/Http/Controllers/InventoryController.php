@@ -6,6 +6,8 @@ use App\Models\Inventory;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 
 class InventoryController extends Controller
 {
@@ -63,14 +65,25 @@ class InventoryController extends Controller
             'quantity' => 'required|integer',
         ]);
 
-        $inventory = $this->service->adjustStock(
-            $request->branch_id,
-            $request->product_id,
-            $request->quantity
-        );
+        try {
+            $inventory = $this->service->adjustStock(
+                $request->branch_id,
+                $request->product_id,
+                $request->quantity
+            );
 
-        return response()->json($inventory);
+            return response()->json($inventory);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'No inventory record found for this product at the selected branch. Please add stock first.'
+            ], 404);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 422);
+        }
     }
+
 
     public function transfer(Request $request)
     {
