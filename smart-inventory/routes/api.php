@@ -21,3 +21,9 @@ use App\Http\Controllers\UserController;
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/managers', [UserController::class, 'getManagers']);
 });
+
+use App\Http\Controllers\Api\ProductController;
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('products', ProductController::class);
+});
