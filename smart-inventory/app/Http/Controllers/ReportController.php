@@ -11,8 +11,25 @@ use Carbon\Carbon;
 
 class ReportController extends Controller
 {
-    public function branchReport($branchId)
+    public function branchReport(Request $request, $branchId)
     {
+        // ── Ownership check ──
+        // Managers can only view reports for branches they manage
+        $user = $request->user();
+        $user->load('role');
+
+        if ($user->role->name === 'branch_manager') {
+            $ownsBranch = \App\Models\Branch::where('id', $branchId)
+                ->where('manager_id', $user->id)
+                ->exists();
+
+            if (!$ownsBranch) {
+                return response()->json([
+                    'message' => 'Access denied. You can only view reports for your own branch.'
+                ], 403);
+            }
+        }
+
         $today = Carbon::today();
         $startOfMonth = Carbon::now()->startOfMonth();
 
