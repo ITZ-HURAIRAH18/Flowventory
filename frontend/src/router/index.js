@@ -19,9 +19,9 @@ import StockTransfer from '@/views/inventory/StockTransfer.vue'
 import StockHistory from '@/views/inventory/StockHistory.vue'
 import BranchReport from '@/views/reports/BranchReport.vue'
 
-
 // ✅ Order Views
 import OrderCreate from '@/views/orders/OrderCreate.vue'
+
 const routes = [
   { path: '/login', component: Login },
 
@@ -34,95 +34,99 @@ const routes = [
   {
     path: '/admin',
     component: AdminPanel,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
 
   // =============================
-  // Branch routes
+  // Branch routes (Super Admin only)
   // =============================
   {
     path: '/branches',
     component: BranchList,
-    meta: { requiresAuth: true, role: 'super_admin' }
-  },
-  {
-    path: '/branches/:id',
-    component: BranchDashboard,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
   {
     path: '/branches/create',
     component: BranchForm,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
   {
     path: '/branches/:id/edit',
     component: BranchForm,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
+  },
+  {
+    path: '/branches/:id',
+    component: BranchDashboard,
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
 
   // =============================
-  // Product routes
+  // Product routes (Super Admin only)
   // =============================
   {
     path: '/products',
     component: ProductList,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
   {
     path: '/products/create',
     component: ProductForm,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
   {
     path: '/products/:id/edit',
     component: ProductForm,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin'] }
   },
 
   // =============================
-  // Inventory routes
+  // Inventory routes (Super Admin + Branch Manager)
   // =============================
   {
     path: '/inventory',
     component: InventoryDashboard,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
   },
   {
     path: '/inventory/add',
     component: StockAdd,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
   },
   {
     path: '/inventory/adjust',
     component: StockAdjust,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
   },
   {
     path: '/inventory/transfer',
     component: StockTransfer,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
   },
   {
     path: '/inventory/history',
     component: StockHistory,
-    meta: { requiresAuth: true, role: 'super_admin' }
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
   },
 
   // =============================
-// Order routes
-// =============================
-{
-  path: '/orders/create',
-  component: OrderCreate,
-  meta: { requiresAuth: true, role: 'super_admin' }
-},
-{
-  path: '/branches/:id/report',
-  component: BranchReport,
-  meta: { requiresAuth: true, role: 'super_admin' },
-  props: route => ({ branchId: route.params.id })
-}
+  // Order routes (Super Admin + Sales User)
+  // =============================
+  {
+    path: '/orders/create',
+    component: OrderCreate,
+    meta: { requiresAuth: true, roles: ['super_admin', 'sales_user'] }
+  },
+
+  // =============================
+  // Report routes (Super Admin + Branch Manager)
+  // =============================
+  {
+    path: '/branches/:id/report',
+    component: BranchReport,
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] },
+    props: route => ({ branchId: route.params.id })
+  }
 ]
 
 const router = createRouter({
@@ -134,12 +138,14 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const user = JSON.parse(localStorage.getItem('user'))
 
+  // Check if route requires authentication
   if (to.meta.requiresAuth && !token) {
     return next('/login')
   }
 
-  if (to.meta.role) {
-    if (!user || user.role.name !== to.meta.role) {
+  // Check if route requires specific roles (supports MULTIPLE roles)
+  if (to.meta.roles) {
+    if (!user || !user.role || !to.meta.roles.includes(user.role.name)) {
       alert("You don't have permission to access this page")
       return next('/dashboard')
     }
