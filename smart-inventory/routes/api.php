@@ -43,3 +43,8 @@ use App\Http\Controllers\OrderController;
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
 });
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/branches/{branch}/report', [App\Http\Controllers\ReportController::class, 'branchReport']);
+});

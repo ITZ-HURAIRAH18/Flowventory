@@ -17,6 +17,7 @@ import StockAdd from '@/views/inventory/StockAdd.vue'
 import StockAdjust from '@/views/inventory/StockAdjust.vue'
 import StockTransfer from '@/views/inventory/StockTransfer.vue'
 import StockHistory from '@/views/inventory/StockHistory.vue'
+import BranchReport from '@/views/reports/BranchReport.vue'
 
 
 // ✅ Order Views
@@ -115,6 +116,12 @@ const routes = [
   path: '/orders/create',
   component: OrderCreate,
   meta: { requiresAuth: true, role: 'super_admin' }
+},
+{
+  path: '/branches/:id/report',
+  component: BranchReport,
+  meta: { requiresAuth: true, role: 'super_admin' },
+  props: route => ({ branchId: route.params.id })
 }
 ]
 
