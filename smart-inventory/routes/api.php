@@ -22,6 +22,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // =============================
+    // All branches (for dropdowns like Order Create, Inventory)
+    // Any authenticated user can see branch names
+    // =============================
+    Route::get('/all-branches', function () {
+        return \App\Models\Branch::all();
+    });
+
+    // =============================
+    // My branches (for Reports — own branch only)
+    // Admin = all, Manager = own branch
+    // =============================
+    Route::get('/my-branches', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        $user->load('role');
+
+        if ($user->role->name === 'super_admin') {
+            return \App\Models\Branch::all();
+        }
+
+        // Manager — return branches where they are the manager
+        return \App\Models\Branch::where('manager_id', $user->id)->get();
+    });
+
+    // =============================
     // Super Admin ONLY routes
     // =============================
     Route::middleware('role:super_admin')->group(function () {
@@ -44,10 +68,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:super_admin,branch_manager')->group(function () {
         Route::get('/inventory', [InventoryController::class, 'index']);
         Route::get('/inventory/history', [InventoryController::class, 'history']);
-        Route::get('/inventory/branch/{branchId}/products', [InventoryController::class, 'productsByBranch']);
         Route::post('/inventory/add', [InventoryController::class, 'add']);
         Route::post('/inventory/adjust', [InventoryController::class, 'adjust']);
         Route::post('/inventory/transfer', [InventoryController::class, 'transfer']);
+    });
+
+    // Products by branch — needed by Order Create (sales + manager)
+    Route::middleware('role:super_admin,branch_manager,sales_user')->group(function () {
+        Route::get('/inventory/branch/{branchId}/products', [InventoryController::class, 'productsByBranch']);
     });
 
     // =============================
@@ -64,19 +92,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Branch Manager = own branch only (handled in controller)
     // =============================
     Route::middleware('role:super_admin,branch_manager')->group(function () {
-        // Returns branches the current user can access (for reports page)
-        Route::get('/my-branches', function (\Illuminate\Http\Request $request) {
-            $user = $request->user();
-            $user->load('role');
-
-            if ($user->role->name === 'super_admin') {
-                return \App\Models\Branch::all();
-            }
-
-            // Branch Manager — return only their assigned branch
-            return \App\Models\Branch::where('manager_id', $user->id)->get();
-        });
-
         Route::get('/branches/{branch}/report', [ReportController::class, 'branchReport']);
     });
 });

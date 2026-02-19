@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Models\Role;
+use App\Models\Branch;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -11,48 +12,64 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create Super Admin
-        $adminRole = Role::where('name', 'super_admin')->first();
+        // ─── Roles ───
+        $adminRole   = Role::where('name', 'super_admin')->first();
+        $managerRole = Role::where('name', 'branch_manager')->first();
+        $salesRole   = Role::where('name', 'sales_user')->first();
+
+        // ─── Super Admin ───
         User::firstOrCreate(
             ['email' => 'admin@example.com'],
             [
-                'name' => 'Admin User',
+                'name'     => 'Admin User',
                 'password' => Hash::make('password123'),
-                'role_id' => $adminRole->id,
+                'role_id'  => $adminRole->id,
             ]
         );
 
-        // Create Branch Manager Role
-        $managerRole = Role::where('name', 'branch_manager')->first();
-
-        // Create a few managers
-        User::firstOrCreate(
+        // ─── Branch Managers ───
+        $manager1 = User::firstOrCreate(
             ['email' => 'manager1@example.com'],
             [
-                'name' => 'Branch Manager 1',
+                'name'     => 'Branch Manager 1',
                 'password' => Hash::make('password123'),
-                'role_id' => $managerRole->id,
+                'role_id'  => $managerRole->id,
             ]
         );
 
-        User::firstOrCreate(
+        $manager2 = User::firstOrCreate(
             ['email' => 'manager2@example.com'],
             [
-                'name' => 'Branch Manager 2',
+                'name'     => 'Branch Manager 2',
                 'password' => Hash::make('password123'),
-                'role_id' => $managerRole->id,
+                'role_id'  => $managerRole->id,
             ]
         );
 
-        // Optional: create sales users if needed
-        $salesRole = Role::where('name', 'sales_user')->first();
+        // ─── Sample Branches (assign managers via manager_id on branches table) ───
+        Branch::firstOrCreate(
+            ['name' => 'Main Branch'],
+            [
+                'address'    => '123 Main Street',
+                'manager_id' => $manager1->id,
+            ]
+        );
 
+        Branch::firstOrCreate(
+            ['name' => 'North Branch'],
+            [
+                'address'    => '456 North Avenue',
+                'manager_id' => $manager2->id,
+            ]
+        );
+
+        // ─── Sales Users ───
         User::firstOrCreate(
             ['email' => 'sales1@example.com'],
             [
-                'name' => 'Sales User 1',
+                'name'     => 'Sales User 1',
                 'password' => Hash::make('password123'),
-                'role_id' => $salesRole->id,
+                'role_id'  => $salesRole->id,
             ]
         );
     }

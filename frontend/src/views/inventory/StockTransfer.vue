@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import inventoryApi from '@/services/inventoryService'
-import branchService from '@/services/branchService'
+import api from '@/services/api'
 import productService from '@/services/productService'
 
 const fromBranch = ref('')
@@ -16,10 +16,10 @@ const products = ref([])
 const fetchOptions = async () => {
   try {
     const [branchRes, productRes] = await Promise.all([
-      branchService.getAll(),
+      api.get('/all-branches'),
       productService.getAll()
     ])
-    branches.value = branchRes.data.data || branchRes.data
+    branches.value = branchRes.data
     products.value = productRes.data.data || productRes.data
   } catch (error) {
     console.error('Failed to load options:', error)

@@ -44,7 +44,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import branchService from '@/services/branchService'
+import api from '@/services/api'
 import inventoryService from '@/services/inventoryService'
 import orderService from '@/services/orderService'
 
@@ -54,11 +54,11 @@ const branch_id = ref('')
 const items = ref([{ product_id: '', quantity: 1 }])
 const loadingProducts = ref(false)
 
-// Load branches on mount
+// Load branches on mount (uses /my-branches — role-aware)
 onMounted(async () => {
   try {
-    const res = await branchService.getAll()
-    branches.value = res.data.data || res.data
+    const res = await api.get('/all-branches')
+    branches.value = res.data
   } catch (error) {
     console.error('Failed to load branches:', error)
   }
