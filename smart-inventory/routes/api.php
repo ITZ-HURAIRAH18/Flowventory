@@ -52,10 +52,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // =============================
     // Order routes
-    // Sales User creates orders
-    // Super Admin can also create orders
+    // Per assignment spec: Admin = No, Manager = Yes, Sales = Yes
     // =============================
-    Route::middleware('role:super_admin,sales_user')->group(function () {
+    Route::middleware('role:branch_manager,sales_user')->group(function () {
         Route::post('/orders', [OrderController::class, 'store']);
     });
 
@@ -65,6 +64,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // Branch Manager = own branch only (handled in controller)
     // =============================
     Route::middleware('role:super_admin,branch_manager')->group(function () {
+        // Returns branches the current user can access (for reports page)
+        Route::get('/my-branches', function (\Illuminate\Http\Request $request) {
+            $user = $request->user();
+            $user->load('role');
+
+            if ($user->role->name === 'super_admin') {
+                return \App\Models\Branch::all();
+            }
+
+            // Branch Manager — return only their assigned branch
+            return \App\Models\Branch::where('manager_id', $user->id)->get();
+        });
+
         Route::get('/branches/{branch}/report', [ReportController::class, 'branchReport']);
     });
 });

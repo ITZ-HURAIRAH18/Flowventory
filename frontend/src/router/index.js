@@ -18,6 +18,7 @@ import StockAdjust from '@/views/inventory/StockAdjust.vue'
 import StockTransfer from '@/views/inventory/StockTransfer.vue'
 import StockHistory from '@/views/inventory/StockHistory.vue'
 import BranchReport from '@/views/reports/BranchReport.vue'
+import ReportsList from '@/views/reports/ReportsList.vue'
 
 // ✅ Order Views
 import OrderCreate from '@/views/orders/OrderCreate.vue'
@@ -110,17 +111,23 @@ const routes = [
   },
 
   // =============================
-  // Order routes (Super Admin + Sales User)
+  // Order routes (Branch Manager + Sales User)
+  // Per assignment spec: Admin = No, Manager = Yes, Sales = Yes
   // =============================
   {
     path: '/orders/create',
     component: OrderCreate,
-    meta: { requiresAuth: true, roles: ['super_admin', 'sales_user'] }
+    meta: { requiresAuth: true, roles: ['branch_manager', 'sales_user'] }
   },
 
   // =============================
   // Report routes (Super Admin + Branch Manager)
   // =============================
+  {
+    path: '/reports',
+    component: ReportsList,
+    meta: { requiresAuth: true, roles: ['super_admin', 'branch_manager'] }
+  },
   {
     path: '/branches/:id/report',
     component: BranchReport,

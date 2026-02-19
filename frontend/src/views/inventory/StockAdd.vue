@@ -54,6 +54,10 @@ onMounted(fetchOptions)
 
 <template>
   <div class="inventory-form">
+    <router-link to="/inventory" class="back-link">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back to Inventory
+    </router-link>
     <h2>Add Stock</h2>
     <p class="form-subtitle">Select a branch and product, then enter the quantity to add.</p>
 
@@ -100,6 +104,26 @@ onMounted(fetchOptions)
 <style scoped>
 .inventory-form {
   max-width: 500px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #818cf8;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: #a5b4fc;
+}
+
+.back-link .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .inventory-form h2 {
