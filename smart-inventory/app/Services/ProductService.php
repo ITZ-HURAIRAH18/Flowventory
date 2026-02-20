@@ -6,11 +6,16 @@ use App\Models\Product;
 
 class ProductService
 {
-    public function list($search = null)
+    public function list($search = null, $status = null)
     {
         return Product::when($search, function ($query) use ($search) {
-            $query->where('name', 'like', "%$search%")
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
                   ->orWhere('sku', 'like', "%$search%");
+            });
+        })
+        ->when($status, function ($query) use ($status) {
+            $query->where('status', $status);
         })
         ->latest()
         ->paginate(10);

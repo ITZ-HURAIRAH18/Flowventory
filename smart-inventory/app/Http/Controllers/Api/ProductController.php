@@ -20,7 +20,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         return response()->json(
-            $this->service->list($request->search)
+            $this->service->list($request->search, $request->status)
         );
     }
 
