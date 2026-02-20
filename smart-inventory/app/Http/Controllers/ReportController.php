@@ -11,6 +11,66 @@ use Carbon\Carbon;
 
 class ReportController extends Controller
 {
+    /**
+     * Summary report — aggregated across branches based on role.
+     * Admin = all branches, Manager = own branch(es).
+     */
+    public function summaryReport(Request $request)
+    {
+        $user = $request->user();
+        $user->load('role');
+
+        // Determine which branch IDs to include
+        if ($user->role->name === 'super_admin') {
+            $branchIds = \App\Models\Branch::pluck('id');
+        } else {
+            $branchIds = \App\Models\Branch::where('manager_id', $user->id)->pluck('id');
+        }
+
+        $today = Carbon::today();
+        $startOfMonth = Carbon::now()->startOfMonth();
+
+        // Total Sales Today
+        $todaySales = Order::whereIn('branch_id', $branchIds)
+            ->whereDate('created_at', $today)
+            ->sum('total');
+
+        // Total Sales This Month
+        $monthlySales = Order::whereIn('branch_id', $branchIds)
+            ->where('created_at', '>=', $startOfMonth)
+            ->sum('total');
+
+        // Total Orders
+        $totalOrders = Order::whereIn('branch_id', $branchIds)->count();
+
+        // Top 5 Products
+        $topProducts = OrderItem::select(
+                'products.name',
+                DB::raw('SUM(order_items.quantity) as total_sold')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('products', 'products.id', '=', 'order_items.product_id')
+            ->whereIn('orders.branch_id', $branchIds)
+            ->groupBy('products.name')
+            ->orderByDesc('total_sold')
+            ->limit(5)
+            ->get();
+
+        // Low Stock Items (threshold = 10)
+        $lowStock = Inventory::whereIn('branch_id', $branchIds)
+            ->where('quantity', '<=', 10)
+            ->with(['product', 'branch'])
+            ->get();
+
+        return response()->json([
+            'today_sales' => $todaySales,
+            'monthly_sales' => $monthlySales,
+            'total_orders' => $totalOrders,
+            'top_products' => $topProducts,
+            'low_stock' => $lowStock,
+        ]);
+    }
+
     public function branchReport(Request $request, $branchId)
     {
         // ── Ownership check ──

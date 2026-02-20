@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Branch Manager = own branch only (handled in controller)
     // =============================
     Route::middleware('role:super_admin,branch_manager')->group(function () {
+        Route::get('/report/summary', [ReportController::class, 'summaryReport']);
         Route::get('/branches/{branch}/report', [ReportController::class, 'branchReport']);
     });
 });
