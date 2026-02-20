@@ -98,8 +98,13 @@ onMounted(fetchOptions)
         <label for="product-select">Product</label>
         <select id="product-select" v-model="productId" required>
           <option value="" disabled>-- Select Product --</option>
-          <option v-for="product in products" :key="product.id" :value="product.id">
-            {{ product.name }} (SKU: {{ product.sku }})
+          <option
+            v-for="product in products"
+            :key="product.id"
+            :value="product.id"
+            :disabled="product.status === 'inactive'"
+          >
+            {{ product.name }} (SKU: {{ product.sku }}){{ product.status === 'inactive' ? ' [Inactive]' : '' }}
           </option>
         </select>
       </div>

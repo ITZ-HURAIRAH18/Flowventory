@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Inventory;
+use App\Models\Product;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
@@ -69,6 +70,7 @@ class InventoryController extends Controller
                 'sale_price' => $item->product->sale_price,
                 'tax_percentage' => $item->product->tax_percentage,
                 'stock' => $item->quantity,
+                'status' => $item->product->status,
             ];
         });
 
@@ -88,6 +90,14 @@ class InventoryController extends Controller
             return response()->json([
                 'message' => 'Access denied. You can only manage inventory for your own branch.'
             ], 403);
+        }
+
+        // Block inactive products
+        $product = Product::find($request->product_id);
+        if ($product && $product->status === 'inactive') {
+            return response()->json([
+                'message' => 'Cannot add stock for an inactive product. Please activate the product first.'
+            ], 422);
         }
 
         $inventory = $this->service->addStock(
@@ -112,6 +122,14 @@ class InventoryController extends Controller
             return response()->json([
                 'message' => 'Access denied. You can only manage inventory for your own branch.'
             ], 403);
+        }
+
+        // Block inactive products
+        $product = Product::find($request->product_id);
+        if ($product && $product->status === 'inactive') {
+            return response()->json([
+                'message' => 'Cannot adjust stock for an inactive product. Please activate the product first.'
+            ], 422);
         }
 
         try {
@@ -148,6 +166,14 @@ class InventoryController extends Controller
             return response()->json([
                 'message' => 'Access denied. You can only transfer stock from your own branch.'
             ], 403);
+        }
+
+        // Block inactive products
+        $product = Product::find($request->product_id);
+        if ($product && $product->status === 'inactive') {
+            return response()->json([
+                'message' => 'Cannot transfer an inactive product. Please activate the product first.'
+            ], 422);
         }
 
         $this->service->transfer(
