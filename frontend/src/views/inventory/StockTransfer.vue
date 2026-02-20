@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import inventoryApi from '@/services/inventoryService'
 import api from '@/services/api'
-import productService from '@/services/productService'
+
 
 const fromBranch = ref('')
 const toBranch = ref('')
@@ -16,8 +16,8 @@ const products = ref([])
 const fetchOptions = async () => {
   try {
     const [branchRes, productRes] = await Promise.all([
-      api.get('/all-branches'),
-      productService.getAll()
+      api.get('/my-branches'),
+      api.get('/all-products')
     ])
     branches.value = branchRes.data
     products.value = productRes.data.data || productRes.data

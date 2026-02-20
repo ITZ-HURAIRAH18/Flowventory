@@ -61,6 +61,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // =============================
+    // Read-only product list (for inventory form dropdowns)
+    // Admin + Manager can list products, full CRUD stays admin-only
+    // =============================
+    Route::middleware('role:super_admin,branch_manager')->group(function () {
+        Route::get('/all-products', [ProductController::class, 'index']);
+    });
+
+    // =============================
     // Inventory routes
     // Super Admin = all branches
     // Branch Manager = own branch only (handled in controller)

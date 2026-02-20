@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Inventory;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
@@ -18,9 +19,20 @@ class InventoryController extends Controller
         $this->service = $service;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $inventory = Inventory::with(['product', 'branch'])->get();
+        $user = $request->user();
+        $user->load('role');
+
+        $query = Inventory::with(['product', 'branch']);
+
+        // Manager sees only their branch inventory
+        if ($user->role->name === 'branch_manager') {
+            $branchIds = Branch::where('manager_id', $user->id)->pluck('id');
+            $query->whereIn('branch_id', $branchIds);
+        }
+
+        $inventory = $query->get();
 
         $data = $inventory->map(function ($item) {
             return [
@@ -71,6 +83,13 @@ class InventoryController extends Controller
             'quantity' => 'required|integer|min:1',
         ]);
 
+        // Ownership check for managers
+        if (!$this->canAccessBranch($request, $request->branch_id)) {
+            return response()->json([
+                'message' => 'Access denied. You can only manage inventory for your own branch.'
+            ], 403);
+        }
+
         $inventory = $this->service->addStock(
             $request->branch_id,
             $request->product_id,
@@ -87,6 +106,13 @@ class InventoryController extends Controller
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|integer',
         ]);
+
+        // Ownership check for managers
+        if (!$this->canAccessBranch($request, $request->branch_id)) {
+            return response()->json([
+                'message' => 'Access denied. You can only manage inventory for your own branch.'
+            ], 403);
+        }
 
         try {
             $inventory = $this->service->adjustStock(
@@ -117,6 +143,13 @@ class InventoryController extends Controller
             'quantity' => 'required|integer|min:1',
         ]);
 
+        // Ownership check for managers — must own the source branch
+        if (!$this->canAccessBranch($request, $request->from_branch_id)) {
+            return response()->json([
+                'message' => 'Access denied. You can only transfer stock from your own branch.'
+            ], 403);
+        }
+
         $this->service->transfer(
             $request->from_branch_id,
             $request->to_branch_id,
@@ -127,26 +160,54 @@ class InventoryController extends Controller
         return response()->json(['message' => 'Stock transferred successfully']);
     }
 
-    public function history()
+    public function history(Request $request)
     {
-        $movements = StockMovement::with(['product', 'branch'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'product' => [
-                        'name' => $item->product->name,
-                    ],
-                    'branch' => [
-                        'name' => $item->branch->name,
-                    ],
-                    'quantity' => $item->quantity,
-                    'action' => $item->type,
-                    'created_at' => $item->created_at,
-                ];
-            });
+        $user = $request->user();
+        $user->load('role');
+
+        $query = StockMovement::with(['product', 'branch'])
+            ->orderBy('created_at', 'desc');
+
+        // Manager sees only their branch history
+        if ($user->role->name === 'branch_manager') {
+            $branchIds = Branch::where('manager_id', $user->id)->pluck('id');
+            $query->whereIn('branch_id', $branchIds);
+        }
+
+        $movements = $query->get()->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'product' => [
+                    'name' => $item->product->name,
+                ],
+                'branch' => [
+                    'name' => $item->branch->name,
+                ],
+                'quantity' => $item->quantity,
+                'action' => $item->type,
+                'created_at' => $item->created_at,
+            ];
+        });
 
         return response()->json($movements);
+    }
+
+    /**
+     * Check if the current user can access a given branch.
+     * Super admin can access all branches.
+     * Branch manager can only access branches they manage.
+     */
+    private function canAccessBranch(Request $request, $branchId): bool
+    {
+        $user = $request->user();
+        $user->load('role');
+
+        if ($user->role->name === 'super_admin') {
+            return true;
+        }
+
+        return Branch::where('id', $branchId)
+            ->where('manager_id', $user->id)
+            ->exists();
     }
 }
