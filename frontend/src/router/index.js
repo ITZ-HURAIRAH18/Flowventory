@@ -169,7 +169,12 @@ router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const user = JSON.parse(localStorage.getItem('user'))
 
-  // Check if route requires authentication
+  // 1. If logged in and trying to access Home or Login, go to Dashboard
+  if (token && (to.path === '/' || to.path === '/login')) {
+    return next('/dashboard')
+  }
+
+  // 2. Check if route requires authentication
   if (to.meta.requiresAuth && !token) {
     return next('/login')
   }
