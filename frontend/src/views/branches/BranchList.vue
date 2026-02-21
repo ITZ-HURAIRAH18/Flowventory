@@ -203,10 +203,6 @@ const initials = (name) =>
 
           <!-- Action buttons -->
           <div class="bc-actions">
-            <button class="bc-btn bc-btn-view" @click="viewBranch(branch.id)">
-              <span class="material-symbols-outlined">open_in_new</span>
-              View
-            </button>
             <button class="bc-btn bc-btn-edit" @click="openEdit(branch)">
               <span class="material-symbols-outlined">edit</span>
               Edit

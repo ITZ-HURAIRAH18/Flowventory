@@ -51,7 +51,7 @@ function renderChart() {
       labels: ['Daily Revenue', 'Monthly Revenue'],
       datasets: [
         {
-          label: 'Revenue ($)',
+          label: 'Revenue (PKR)',
           data: [
             report.value.today_sales,
             report.value.monthly_sales
@@ -78,7 +78,7 @@ function renderChart() {
           cornerRadius: 12,
           displayColors: false,
           callbacks: {
-            label: (ctx) => `Revenue: $${Number(ctx.raw).toLocaleString()}`
+            label: (ctx) => `Revenue: PKR ${Number(ctx.raw).toLocaleString()}`
           }
         }
       },
@@ -92,7 +92,7 @@ function renderChart() {
           ticks: {
             color: '#A1887F',
             font: { family: 'Outfit', size: 12 },
-            callback: (val) => '$' + val.toLocaleString()
+            callback: (val) => 'PKR ' + val.toLocaleString()
           },
           grid: { color: 'rgba(215, 204, 200, 0.25)', drawTicks: false },
           border: { display: false }
@@ -149,14 +149,14 @@ function goBack() {
           <div class="br-ico-wrap ico-brown"><span class="material-symbols-outlined">savings</span></div>
           <div class="br-info">
             <span class="br-label">Today Sales</span>
-            <span class="br-value">${{ Number(report.today_sales).toLocaleString() }}</span>
+            <span class="br-value">PKR {{ Number(report.today_sales).toLocaleString() }}</span>
           </div>
         </div>
         <div class="br-card br-stat-card" style="--delay: 0.2s">
           <div class="br-ico-wrap ico-tan"><span class="material-symbols-outlined">account_balance</span></div>
           <div class="br-info">
             <span class="br-label">Monthly Sales</span>
-            <span class="br-value">${{ Number(report.monthly_sales).toLocaleString() }}</span>
+            <span class="br-value">PKR {{ Number(report.monthly_sales).toLocaleString() }}</span>
           </div>
         </div>
         <div class="br-card br-stat-card" style="--delay: 0.3s">

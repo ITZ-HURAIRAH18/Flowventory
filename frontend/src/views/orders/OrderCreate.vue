@@ -138,16 +138,16 @@ onMounted(fetchBranches)
             </div>
             <div class="sum-row">
               <span class="sum-lbl">NET TOTAL</span>
-              <span class="sum-val">Rs.{{ subtotal.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ subtotal.toLocaleString() }}</span>
             </div>
             <div class="sum-row">
               <span class="sum-lbl">VAT / TAX</span>
-              <span class="sum-val">Rs.{{ tax.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ tax.toLocaleString() }}</span>
             </div>
             <div class="sum-divider"></div>
             <div class="sum-row sum-main">
               <span class="sum-lbl">GRAND TOTAL</span>
-              <span class="sum-val">Rs.{{ total.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ total.toLocaleString() }}</span>
             </div>
           </div>
 
@@ -218,7 +218,7 @@ onMounted(fetchBranches)
                   <div class="oc-col-price">
                     <label>LINE TOTAL</label>
                     <div class="oc-line-price">
-                      Rs.{{ (getProduct(item.product_id)? (getProduct(item.product_id).sale_price * item.quantity) : 0).toLocaleString() }}
+                      PKR {{ (getProduct(item.product_id)? (getProduct(item.product_id).sale_price * item.quantity) : 0).toLocaleString() }}
                     </div>
                   </div>
 
@@ -228,7 +228,7 @@ onMounted(fetchBranches)
                 </div>
                 <!-- Mini info -->
                 <div v-if="getProduct(item.product_id)" class="oc-item-details">
-                  UNIT: Rs.{{ getProduct(item.product_id).sale_price }} • TAX: {{ getProduct(item.product_id).tax_percentage }}%
+                  UNIT: PKR {{ getProduct(item.product_id).sale_price }} • TAX: {{ getProduct(item.product_id).tax_percentage }}%
                 </div>
               </div>
             </div>

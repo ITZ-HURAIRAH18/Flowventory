@@ -99,7 +99,7 @@ function renderChart() {
           cornerRadius: 12,
           displayColors: false,
           callbacks: {
-            label: (ctx) => `Revenue: $${Number(ctx.raw).toLocaleString()}`
+            label: (ctx) => `Revenue: PKR ${Number(ctx.raw).toLocaleString()}`
           }
         }
       },
@@ -113,7 +113,7 @@ function renderChart() {
           ticks: {
             color: '#A1887F',
             font: { family: 'Outfit', size: 12 },
-            callback: (val) => '$' + val.toLocaleString()
+            callback: (val) => 'PKR ' + val.toLocaleString()
           },
           grid: { color: 'rgba(215, 204, 200, 0.2)', drawTicks: false },
           border: { display: false }
@@ -153,14 +153,14 @@ const viewReport = (id) => router.push(`/branches/${id}/report`)
             <div class="stat-ico ico-brown"><span class="material-symbols-outlined">payments</span></div>
             <div class="stat-info">
               <span class="stat-label">Daily Revenue</span>
-              <span class="stat-value">${{ Number(summary.today_sales).toLocaleString() }}</span>
+              <span class="stat-value">PKR {{ Number(summary.today_sales).toLocaleString() }}</span>
             </div>
           </div>
           <div class="stat-card" style="--delay: 0.2s">
             <div class="stat-ico ico-tan"><span class="material-symbols-outlined">account_balance_wallet</span></div>
             <div class="stat-info">
               <span class="stat-label">Monthly Cumulative</span>
-              <span class="stat-value">${{ Number(summary.monthly_sales).toLocaleString() }}</span>
+              <span class="stat-value">PKR {{ Number(summary.monthly_sales).toLocaleString() }}</span>
             </div>
           </div>
           <div class="stat-card" style="--delay: 0.3s">

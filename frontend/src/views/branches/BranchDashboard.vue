@@ -119,7 +119,7 @@ const onSaved = () => { showEditModal.value = false; fetchBranch() }
             <span class="material-symbols-outlined">edit</span>
             Edit Branch
           </button>
-          <router-link to="/branches/:id/report" class="bd-btn-report">
+          <router-link :to="`/branches/${branch.id}/report`" class="bd-btn-report">
             <span class="material-symbols-outlined">bar_chart</span>
             Report
           </router-link>

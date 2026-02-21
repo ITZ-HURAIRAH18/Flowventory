@@ -303,9 +303,9 @@ onMounted(() => {
 .kpi-card[role="button"]:hover { transform: translateY(-3px); border-color: #8D6E63; box-shadow: 0 10px 25px rgba(93,64,55,0.08); }
 
 .kpi-dark { background: #3E2723; border-color: #3E2723; color: #fff; }
-.kpi-dark .stat-label { color: rgba(255,255,255,0.7); }
-.kpi-dark .stat-sub { color: rgba(255,255,255,0.5); }
-.kpi-dark .stat-value { color: #fff; }
+.kpi-dark .kpi-label { color: rgba(255,255,255,0.7); }
+.kpi-dark .kpi-sub { color: rgba(255,255,255,0.5); }
+.kpi-dark .kpi-value { color: #fff; }
 
 .kpi-icon-wrap {
   width: 50px; height: 50px; border-radius: 15px;

@@ -185,12 +185,12 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
           <div class="pc-financials">
             <div class="fin-item">
               <span class="fin-label">Cost</span>
-              <span class="fin-val">${{ formatPrice(product.cost_price) }}</span>
+              <span class="fin-val">PKR {{ formatPrice(product.cost_price) }}</span>
             </div>
             <div class="fin-divider"></div>
             <div class="fin-item highlight">
               <span class="fin-label">Sale</span>
-              <span class="fin-val">${{ formatPrice(product.sale_price) }}</span>
+              <span class="fin-val">PKR {{ formatPrice(product.sale_price) }}</span>
             </div>
             <div class="fin-divider"></div>
             <div class="fin-item">
