@@ -7,6 +7,9 @@ use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
+use App\Http\Requests\AddInventoryRequest;
+use App\Http\Requests\AdjustInventoryRequest;
+use App\Http\Requests\TransferInventoryRequest;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Exception;
@@ -33,58 +36,28 @@ class InventoryController extends Controller
             $query->whereIn('branch_id', $branchIds);
         }
 
-        $inventory = $query->get();
+        $inventory = $query->paginate(15);
 
-        $data = $inventory->map(function ($item) {
-            return [
-                'id' => $item->id,
-                'product' => [
-                    'id' => $item->product->id,
-                    'name' => $item->product->name,
-                ],
-                'branch' => [
-                    'id' => $item->branch->id,
-                    'name' => $item->branch->name,
-                ],
-                'stock' => $item->quantity,
-            ];
-        });
-
-        return response()->json($data);
+        return response()->json($inventory);
     }
 
     /**
-     * Get products available at a specific branch (stock > 0)
+     * Get products available at a specific branch (stock > 0) with pagination
      */
-    public function productsByBranch($branchId)
+    public function productsByBranch($branchId, Request $request)
     {
+        $perPage = $request->input('per_page', 15);
+        
         $inventory = Inventory::with('product')
             ->where('branch_id', $branchId)
             ->where('quantity', '>', 0)
-            ->get();
+            ->paginate($perPage);
 
-        $data = $inventory->map(function ($item) {
-            return [
-                'id' => $item->product->id,
-                'name' => $item->product->name,
-                'sale_price' => $item->product->sale_price,
-                'tax_percentage' => $item->product->tax_percentage,
-                'stock' => $item->quantity,
-                'status' => $item->product->status,
-            ];
-        });
-
-        return response()->json($data);
+        return response()->json($inventory);
     }
 
-    public function add(Request $request)
+    public function add(AddInventoryRequest $request)
     {
-        $request->validate([
-            'branch_id' => 'required|exists:branches,id',
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
-        ]);
-
         // Ownership check for managers
         if (!$this->canAccessBranch($request, $request->branch_id)) {
             return response()->json([
@@ -109,14 +82,8 @@ class InventoryController extends Controller
         return response()->json($inventory, 201);
     }
 
-    public function adjust(Request $request)
+    public function adjust(AdjustInventoryRequest $request)
     {
-        $request->validate([
-            'branch_id' => 'required|exists:branches,id',
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer',
-        ]);
-
         // Ownership check for managers
         if (!$this->canAccessBranch($request, $request->branch_id)) {
             return response()->json([
@@ -152,15 +119,8 @@ class InventoryController extends Controller
     }
 
 
-    public function transfer(Request $request)
+    public function transfer(TransferInventoryRequest $request)
     {
-        $request->validate([
-            'from_branch_id' => 'required|exists:branches,id',
-            'to_branch_id' => 'required|exists:branches,id',
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
-        ]);
-
         // Ownership check for managers — must own the source branch
         if (!$this->canAccessBranch($request, $request->from_branch_id)) {
             return response()->json([
@@ -190,6 +150,7 @@ class InventoryController extends Controller
     {
         $user = $request->user();
         $user->load('role');
+        $perPage = $request->input('per_page', 20);
 
         $query = StockMovement::with(['product', 'branch'])
             ->orderBy('created_at', 'desc');
@@ -200,22 +161,9 @@ class InventoryController extends Controller
             $query->whereIn('branch_id', $branchIds);
         }
 
-        $movements = $query->get()->map(function ($item) {
-            return [
-                'id' => $item->id,
-                'product' => [
-                    'name' => $item->product->name,
-                ],
-                'branch' => [
-                    'name' => $item->branch->name,
-                ],
-                'quantity' => $item->quantity,
-                'action' => $item->type,
-                'created_at' => $item->created_at,
-            ];
-        });
-
-        return response()->json($movements);
+        return response()->json(
+            $query->paginate($perPage)
+        );
     }
 
     /**

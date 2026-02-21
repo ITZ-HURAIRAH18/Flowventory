@@ -2,84 +2,54 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Inventory;
+use App\Models\Branch;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class ReportController extends Controller
 {
+    protected $service;
+
+    public function __construct(ReportService $service)
+    {
+        $this->service = $service;
+    }
+
     /**
-     * Summary report — aggregated across branches based on role.
-     * Admin = all branches, Manager = own branch(es).
+     * GET /api/reports/summary
+     * Summary report — aggregated across branches based on user role.
+     * Super admin sees all branches, managers see only their own.
      */
     public function summaryReport(Request $request)
     {
         $user = $request->user();
         $user->load('role');
 
-        // Determine which branch IDs to include
+        // Determine which branch IDs to include based on user role
         if ($user->role->name === 'super_admin') {
-            $branchIds = \App\Models\Branch::pluck('id');
+            $branchIds = Branch::pluck('id')->toArray();
         } else {
-            $branchIds = \App\Models\Branch::where('manager_id', $user->id)->pluck('id');
+            $branchIds = Branch::where('manager_id', $user->id)->pluck('id')->toArray();
         }
 
-        $today = Carbon::today();
-        $startOfMonth = Carbon::now()->startOfMonth();
-
-        // Total Sales Today
-        $todaySales = Order::whereIn('branch_id', $branchIds)
-            ->whereDate('created_at', $today)
-            ->sum('total');
-
-        // Total Sales This Month
-        $monthlySales = Order::whereIn('branch_id', $branchIds)
-            ->where('created_at', '>=', $startOfMonth)
-            ->sum('total');
-
-        // Total Orders
-        $totalOrders = Order::whereIn('branch_id', $branchIds)->count();
-
-        // Top 5 Products
-        $topProducts = OrderItem::select(
-                'products.name',
-                DB::raw('SUM(order_items.quantity) as total_sold')
-            )
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->join('products', 'products.id', '=', 'order_items.product_id')
-            ->whereIn('orders.branch_id', $branchIds)
-            ->groupBy('products.name')
-            ->orderByDesc('total_sold')
-            ->limit(5)
-            ->get();
-
-        // Low Stock Items (threshold = 10)
-        $lowStock = Inventory::whereIn('branch_id', $branchIds)
-            ->where('quantity', '<=', 10)
-            ->with(['product', 'branch'])
-            ->get();
-
-        return response()->json([
-            'today_sales' => $todaySales,
-            'monthly_sales' => $monthlySales,
-            'total_orders' => $totalOrders,
-            'top_products' => $topProducts,
-            'low_stock' => $lowStock,
-        ]);
+        return response()->json(
+            $this->service->getSummaryReport($branchIds)
+        );
     }
 
+    /**
+     * GET /api/reports/branches/{branchId}
+     * Get detailed report for a specific branch.
+     * Managers can only view reports for branches they manage.
+     */
     public function branchReport(Request $request, $branchId)
     {
-        // ── Ownership check ──
-        // Managers can only view reports for branches they manage
         $user = $request->user();
         $user->load('role');
 
+        // Authorization check — managers can only view reports for their own branches
         if ($user->role->name === 'branch_manager') {
-            $ownsBranch = \App\Models\Branch::where('id', $branchId)
+            $ownsBranch = Branch::where('id', $branchId)
                 ->where('manager_id', $user->id)
                 ->exists();
 
@@ -90,47 +60,8 @@ class ReportController extends Controller
             }
         }
 
-        $today = Carbon::today();
-        $startOfMonth = Carbon::now()->startOfMonth();
-
-        // Total Sales Today
-        $todaySales = Order::where('branch_id', $branchId)
-            ->whereDate('created_at', $today)
-            ->sum('total');
-
-        // Total Sales This Month
-        $monthlySales = Order::where('branch_id', $branchId)
-            ->where('created_at', '>=', $startOfMonth)
-            ->sum('total');
-
-        // Total Orders
-        $totalOrders = Order::where('branch_id', $branchId)->count();
-
-        // Top 5 Products
-        $topProducts = OrderItem::select(
-                'products.name',
-                DB::raw('SUM(order_items.quantity) as total_sold')
-            )
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->join('products', 'products.id', '=', 'order_items.product_id')
-            ->where('orders.branch_id', $branchId)
-            ->groupBy('products.name')
-            ->orderByDesc('total_sold')
-            ->limit(5)
-            ->get();
-
-        // Low Stock Items (threshold = 10)
-        $lowStock = Inventory::where('branch_id', $branchId)
-            ->where('quantity', '<=', 10)
-            ->with('product')
-            ->get();
-
-        return response()->json([
-            'today_sales' => $todaySales,
-            'monthly_sales' => $monthlySales,
-            'total_orders' => $totalOrders,
-            'top_products' => $topProducts,
-            'low_stock' => $lowStock,
-        ]);
+        return response()->json(
+            $this->service->getBranchReport($branchId)
+        );
     }
 }
