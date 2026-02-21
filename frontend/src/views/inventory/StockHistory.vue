@@ -6,13 +6,21 @@ import LoadingScreen from '@/components/LoadingScreen.vue'
 const history = ref([])
 const loading = ref(true)
 const error   = ref(null)
+const currentPage = ref(1)
+const perPage = ref(20)
+const totalItems = ref(0)
+const lastPage = ref(1)
 
-const fetchHistory = async () => {
+const fetchHistory = async (page = 1) => {
   loading.value = true
   error.value = null
+  currentPage.value = page
   try {
-    const res = await api.history()
+    const res = await api.history(page, perPage.value)
     history.value = res.data.data ?? res.data
+    totalItems.value = res.data.total ?? res.data.length
+    lastPage.value = res.data.last_page ?? 1
+    currentPage.value = res.data.current_page ?? page
   } catch (err) {
     error.value = 'Failed to load stock history logs.'
   } finally {
@@ -35,7 +43,13 @@ const actionIcon = (type) => {
   return map[type] || 'swap_horiz'
 }
 
-onMounted(fetchHistory)
+const goToPage = (page) => {
+  if (page >= 1 && page <= lastPage.value) {
+    fetchHistory(page)
+  }
+}
+
+onMounted(() => fetchHistory(1))
 </script>
 
 <template>
@@ -125,6 +139,19 @@ onMounted(fetchHistory)
             </tr>
           </tbody>
         </table>
+
+        <!-- Pagination controls -->
+        <div class="sh-pagination">
+          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="sh-paginate-btn">
+            <span class="material-symbols-outlined">chevron_left</span> Previous
+          </button>
+          <div class="sh-pagination-info">
+            Page {{ currentPage }} of {{ lastPage }}
+          </div>
+          <button @click="goToPage(currentPage + 1)" :disabled="currentPage === lastPage" class="sh-paginate-btn">
+            Next <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -227,4 +254,31 @@ onMounted(fetchHistory)
 
 .sh-error { padding: 2rem; text-align: center; color: #dc2626; font-size: 0.9rem; }
 .retry-btn { margin-left: 0.5rem; text-decoration: underline; background: none; border: none; font-weight: 600; cursor: pointer; color: #dc2626; }
+
+/* Pagination */
+.sh-pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1.5rem; padding: 1.5rem 1.75rem; border-top: 1px solid #F3EDE9;
+  background: #FAF9F7;
+}
+.sh-paginate-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 1rem; background: #fff; border: 1.5px solid #E0D7D0;
+  border-radius: 10px; font-weight: 700; font-size: 0.78rem; color: #3E2723;
+  cursor: pointer; transition: all 0.2s; outline: none; font-family: inherit;
+}
+.sh-paginate-btn:hover:not(:disabled) { border-color: #8D6E63; background: #FAF8F6; }
+.sh-paginate-btn:disabled {
+  opacity: 0.4; cursor: not-allowed;
+}
+.sh-pagination-info {
+  font-size: 0.78rem; font-weight: 700; color: #5D4037;
+  padding: 0 1rem;
+}
+
+@media (max-width: 768px) {
+  .sh-pagination { flex-direction: column; gap: 1rem; padding: 1rem; }
+  .sh-paginate-btn { width: 100%; justify-content: center; }
+  .sh-pagination-info { width: 100%; text-align: center; }
+}
 </style>

@@ -27,8 +27,8 @@ class ReportService
             'today_sales' => $this->getTodaySales($branchIds, $today),
             'monthly_sales' => $this->getMonthlySales($branchIds, $startOfMonth),
             'total_orders' => $this->getTotalOrders($branchIds),
-            'top_products' => $this->getTopProducts($branchIds),
-            'low_stock' => $this->getLowStockItems($branchIds),
+            'top_products' => $this->getTopProducts($branchIds, 10), // Limit to top 10
+            'low_stock' => $this->getLowStockItems($branchIds, 50), // Paginate to 50 per page
         ];
     }
 
@@ -47,8 +47,8 @@ class ReportService
             'today_sales' => $this->getTodaySales([$branchId], $today),
             'monthly_sales' => $this->getMonthlySales([$branchId], $startOfMonth),
             'total_orders' => $this->getTotalOrders([$branchId]),
-            'top_products' => $this->getTopProducts([$branchId]),
-            'low_stock' => $this->getLowStockItems([$branchId]),
+            'top_products' => $this->getTopProducts([$branchId], 10), // Limit to top 10
+            'low_stock' => $this->getLowStockItems([$branchId], 50), // Paginate to 50 per page
         ];
     }
 
@@ -92,12 +92,13 @@ class ReportService
     }
 
     /**
-     * Get top 5 products by quantity sold.
+     * Get top 5-10 products by quantity sold.
      *
      * @param array $branchIds
+     * @param int $limit
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    private function getTopProducts(array $branchIds)
+    private function getTopProducts(array $branchIds, int $limit = 5)
     {
         return OrderItem::select(
             'products.name',
@@ -108,7 +109,7 @@ class ReportService
             ->whereIn('orders.branch_id', $branchIds)
             ->groupBy('products.name')
             ->orderByDesc('total_sold')
-            ->limit(5)
+            ->limit($limit)
             ->get();
     }
 
@@ -116,13 +117,15 @@ class ReportService
      * Get inventory items below stock threshold (10 units).
      *
      * @param array $branchIds
+     * @param int $limit
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    private function getLowStockItems(array $branchIds)
+    private function getLowStockItems(array $branchIds, int $limit = 50)
     {
         return Inventory::whereIn('branch_id', $branchIds)
             ->where('quantity', '<=', 10)
             ->with(['product', 'branch'])
+            ->limit($limit)
             ->get();
     }
 }

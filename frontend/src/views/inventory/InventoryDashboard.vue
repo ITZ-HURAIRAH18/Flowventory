@@ -7,14 +7,22 @@ const inventory = ref([])
 const loading   = ref(true)
 const error     = ref('')
 const search    = ref('')
+const currentPage = ref(1)
+const perPage = ref(15)
+const totalItems = ref(0)
+const lastPage = ref(1)
 
 /* ── fetch ── */
-const fetchInventory = async () => {
+const fetchInventory = async (page = 1) => {
   loading.value = true
   error.value   = ''
+  currentPage.value = page
   try {
-    const res = await inventoryService.getAll()
+    const res = await inventoryService.getAll(page, perPage.value)
     inventory.value = res.data.data ?? res.data
+    totalItems.value = res.data.total ?? res.data.length
+    lastPage.value = res.data.last_page ?? 1
+    currentPage.value = res.data.current_page ?? page
   } catch {
     error.value = 'Failed to load inventory data.'
   } finally {
@@ -22,7 +30,7 @@ const fetchInventory = async () => {
   }
 }
 
-onMounted(fetchInventory)
+onMounted(() => fetchInventory(1))
 
 /* ── filter ── */
 const filtered = computed(() => {
@@ -34,10 +42,10 @@ const filtered = computed(() => {
 })
 
 /* ── stats ── */
-const totalItems   = computed(() => inventory.value.length)
-const lowStock     = computed(() => inventory.value.filter(i => i.stock > 0 && i.stock <= 5).length)
-const outOfStock   = computed(() => inventory.value.filter(i => i.stock <= 0).length)
-const totalUnits   = computed(() => inventory.value.reduce((s, i) => s + (i.stock || 0), 0))
+const totalItemsCount   = computed(() => totalItems.value)
+const lowStock     = computed(() => inventory.value.filter(i => i.quantity > 0 && i.quantity <= 5).length)
+const outOfStock   = computed(() => inventory.value.filter(i => i.quantity <= 0).length)
+const totalUnits   = computed(() => inventory.value.reduce((s, i) => s + (i.quantity || 0), 0))
 
 /* ── helpers ── */
 const stockLevel = (qty) => {
@@ -45,6 +53,13 @@ const stockLevel = (qty) => {
   if (qty <= 5)  return { label: 'Low Stock',    cls: 'badge-low' }
   return          { label: 'In Stock',     cls: 'badge-ok' }
 }
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= lastPage.value) {
+    fetchInventory(page)
+  }
+}
+
 </script>
 
 <template>
@@ -91,7 +106,7 @@ const stockLevel = (qty) => {
     <div class="inv-stats">
       <div class="stat-chip">
         <span class="material-symbols-outlined stat-ico">inventory</span>
-        <span class="stat-val">{{ totalItems }}</span>
+        <span class="stat-val">{{ totalItemsCount }}</span>
         <span class="stat-lbl">SKUs Listed</span>
       </div>
       <div class="stat-chip">
@@ -165,18 +180,31 @@ const stockLevel = (qty) => {
               </td>
               <td>
                 <div class="stock-wrap">
-                  <span class="stock-num">{{ item.stock }}</span>
+                  <span class="stock-num">{{ item.quantity ?? item.stock ?? 0 }}</span>
                   <!-- Removal of the "pipe" (progress bar) as requested -->
                 </div>
               </td>
               <td>
-                <span class="stock-badge" :class="stockLevel(item.stock).cls">
-                  {{ stockLevel(item.stock).label }}
+                <span class="stock-badge" :class="stockLevel(item.quantity ?? item.stock ?? 0).cls">
+                  {{ stockLevel(item.quantity ?? item.stock ?? 0).label }}
                 </span>
               </td>
             </tr>
           </tbody>
         </table>
+
+        <!-- Pagination controls -->
+        <div class="pagination-controls">
+          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="paginate-btn">
+            <span class="material-symbols-outlined">chevron_left</span> Previous
+          </button>
+          <div class="pagination-info">
+            Page {{ currentPage }} of {{ lastPage }}
+          </div>
+          <button @click="goToPage(currentPage + 1)" :disabled="currentPage === lastPage" class="paginate-btn">
+            Next <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -321,10 +349,32 @@ const stockLevel = (qty) => {
 .badge-low { background: #FFFBEB; color: #92400E; border: 1px solid #FEF3C7; }
 .badge-out { background: #FEF2F2; color: #991B1B; border: 1px solid #FEE2E2; }
 
+/* ════════════════════════════════
+   PAGINATION
+════════════════════════════════ */
+.pagination-controls {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1.5rem; padding: 1.5rem 2rem; border-top: 1px solid #F3EDE9;
+  background: #FAF9F7;
+}
+.paginate-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1.2rem; background: #fff; border: 1.5px solid #E0D7D0;
+  border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #3E2723;
+  cursor: pointer; transition: all 0.2s; outline: none;
+}
+.paginate-btn:hover:not(:disabled) { border-color: #8D6E63; background: #FAF8F6; }
+.paginate-btn:disabled {
+  opacity: 0.4; cursor: not-allowed;
+}
+.pagination-info {
+  font-size: 0.88rem; font-weight: 700; color: #5D4037;
+  padding: 0 1rem;
+}
+
 @media (max-width: 768px) {
-  .inv-stats { flex-wrap: wrap; padding: 1rem; gap: 1rem; }
-  .stat-chip { flex: 1 0 45%; padding: 0.5rem 0; justify-content: center; }
-  .search-wrap { width: 100%; }
-  .nav-card { width: 100%; }
+  .pagination-controls { flex-direction: column; gap: 1rem; padding: 1rem; }
+  .paginate-btn { width: 100%; justify-content: center; }
+  .pagination-info { width: 100%; text-align: center; }
 }
 </style>

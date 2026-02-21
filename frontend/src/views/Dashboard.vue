@@ -18,14 +18,21 @@ const error   = ref('')
 const branches   = ref([])
 const products   = ref([])
 const inventory  = ref([])
+const inventoryTotal = ref(0)
+const inventoryStats = ref({
+  total_volume: 0,
+  low_stock_count: 0,
+  out_of_stock_count: 0,
+  total_skus: 0
+})
 
 /* ── derived KPIs ── */
 const totalBranches  = computed(() => branches.value.length)
 const managedBranches = computed(() => branches.value.filter(b => b.manager).length)
 const totalProducts  = computed(() => products.value.length)
 const activeProducts = computed(() => products.value.filter(p => p.status === 'active').length)
-const totalStock     = computed(() => inventory.value.reduce((s, i) => s + (i.stock || 0), 0))
-const lowStockItems  = computed(() => inventory.value.filter(i => i.stock <= 5).length)
+const totalStock     = computed(() => inventoryStats.value.total_volume || 0)
+const lowStockItems  = computed(() => inventoryStats.value.low_stock_count || 0)
 
 const roleName   = computed(() => {
   if (!user.value?.role) return ''
@@ -69,7 +76,17 @@ const fetchData = async () => {
     if (isSuperAdmin.value || isBranchManager.value) {
       tasks.push(branchService.getAll().then(r  => { branches.value  = r.data.data ?? r.data }))
       tasks.push(productService.getAll().then(r  => { products.value  = r.data.data ?? r.data }))
-      tasks.push(inventoryService.getAll().then(r => { inventory.value = r.data.data ?? r.data }))
+      tasks.push(inventoryService.getAll().then(r => { 
+        // Handle paginated response
+        const data = r.data
+        inventory.value = data.data ?? data
+        // Store total for KPI calculation
+        inventoryTotal.value = data.total ?? 0
+      }))
+      // Get inventory statistics (total volume, low stock count, etc.)
+      tasks.push(inventoryService.getStats().then(r => { 
+        inventoryStats.value = r.data
+      }))
     }
     await Promise.all(tasks)
   } catch {
@@ -225,14 +242,14 @@ onMounted(() => {
             <tbody>
               <tr v-for="item in inventory.slice(0, 8)" :key="item.id">
                 <td class="ov-td-product">
-                  <span class="ov-dot" :class="item.stock <= 5 ? 'dot-red' : item.stock <= 20 ? 'dot-amber' : 'dot-brown'"></span>
+                  <span class="ov-dot" :class="(item.quantity ?? item.stock ?? 0) <= 5 ? 'dot-red' : (item.quantity ?? item.stock ?? 0) <= 20 ? 'dot-amber' : 'dot-brown'"></span>
                   {{ item.product?.name ?? '—' }}
                 </td>
                 <td class="ov-td-branch" v-if="isSuperAdmin">{{ item.branch?.name ?? '—' }}</td>
-                <td class="ov-td-qty">{{ item.stock.toLocaleString() }}</td>
+                <td class="ov-td-qty">{{ (item.quantity ?? item.stock ?? 0).toLocaleString() }}</td>
                 <td>
-                  <span class="ov-status" :class="item.stock <= 5 ? 's-alert' : 's-ok'">
-                    {{ item.stock <= 5 ? 'Restock Required' : 'Optimal' }}
+                  <span class="ov-status" :class="(item.quantity ?? item.stock ?? 0) <= 5 ? 's-alert' : 's-ok'">
+                    {{ (item.quantity ?? item.stock ?? 0) <= 5 ? 'Restock Required' : 'Optimal' }}
                   </span>
                 </td>
               </tr>

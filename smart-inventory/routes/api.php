@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryStatsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\OrderController;
@@ -77,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // =============================
     Route::middleware('role:super_admin,branch_manager')->group(function () {
         Route::get('/inventory', [InventoryController::class, 'index']);
+        Route::get('/inventory/stats', [InventoryStatsController::class, 'stats']);
         Route::get('/inventory/history', [InventoryController::class, 'history']);
         Route::post('/inventory/add', [InventoryController::class, 'add']);
         Route::post('/inventory/adjust', [InventoryController::class, 'adjust']);

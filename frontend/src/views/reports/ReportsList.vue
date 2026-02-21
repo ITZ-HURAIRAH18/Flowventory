@@ -153,21 +153,21 @@ const viewReport = (id) => router.push(`/branches/${id}/report`)
             <div class="stat-ico ico-brown"><span class="material-symbols-outlined">payments</span></div>
             <div class="stat-info">
               <span class="stat-label">Daily Revenue</span>
-              <span class="stat-value">PKR {{ Number(summary.today_sales).toLocaleString() }}</span>
+              <span class="stat-value">PKR {{ (summary?.today_sales ?? 0).toLocaleString() }}</span>
             </div>
           </div>
           <div class="stat-card" style="--delay: 0.2s">
             <div class="stat-ico ico-tan"><span class="material-symbols-outlined">account_balance_wallet</span></div>
             <div class="stat-info">
               <span class="stat-label">Monthly Cumulative</span>
-              <span class="stat-value">PKR {{ Number(summary.monthly_sales).toLocaleString() }}</span>
+              <span class="stat-value">PKR {{ (summary?.monthly_sales ?? 0).toLocaleString() }}</span>
             </div>
           </div>
           <div class="stat-card" style="--delay: 0.3s">
             <div class="stat-ico ico-warm"><span class="material-symbols-outlined">orders</span></div>
             <div class="stat-info">
               <span class="stat-label">Order Volume</span>
-              <span class="stat-value">{{ summary.total_orders.toLocaleString() }}</span>
+              <span class="stat-value">{{ (summary?.total_orders ?? 0).toLocaleString() }}</span>
             </div>
           </div>
         </div>
@@ -179,8 +179,11 @@ const viewReport = (id) => router.push(`/branches/${id}/report`)
               <span class="material-symbols-outlined">bar_chart</span>
               <h3>Revenue Trends</h3>
             </div>
-            <div class="viz-body">
+            <div v-if="summary" class="viz-body">
               <canvas ref="salesChart"></canvas>
+            </div>
+            <div v-else class="rp-empty-small">
+              <p>Loading chart data…</p>
             </div>
           </div>
 
