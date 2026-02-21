@@ -11,6 +11,9 @@ import BranchForm from '@/views/branches/BranchForm.vue'
 import ProductList from '@/views/products/ProductList.vue'
 import ProductForm from '@/views/products/ProductForm.vue'
 
+import UserList from '@/views/users/UserList.vue'
+import UserForm from '@/views/users/UserForm.vue'
+
 // ✅ Inventory Views
 import InventoryDashboard from '@/views/inventory/InventoryDashboard.vue'
 import StockAdd from '@/views/inventory/StockAdd.vue'
@@ -78,6 +81,25 @@ const routes = [
   {
     path: '/products/:id/edit',
     component: ProductForm,
+    meta: { requiresAuth: true, roles: ['super_admin'] }
+  },
+
+  // =============================
+  // User management routes (Super Admin only)
+  // =============================
+  {
+    path: '/users',
+    component: UserList,
+    meta: { requiresAuth: true, roles: ['super_admin'] }
+  },
+  {
+    path: '/users/create',
+    component: UserForm,
+    meta: { requiresAuth: true, roles: ['super_admin'] }
+  },
+  {
+    path: '/users/:id/edit',
+    component: UserForm,
     meta: { requiresAuth: true, roles: ['super_admin'] }
   },
 

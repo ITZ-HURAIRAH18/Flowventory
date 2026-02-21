@@ -79,6 +79,7 @@ const navLinks = computed(() => {
   if (roleName.value === 'super_admin') {
     links.push({ label: 'Branches', path: '/branches', icon: 'store' })
     links.push({ label: 'Products', path: '/products', icon: 'inventory_2' })
+    links.push({ label: 'Users', path: '/users', icon: 'group' })
     links.push({ label: 'Inventory', path: '/inventory', icon: 'warehouse' })
     links.push({ label: 'Reports', path: '/reports', icon: 'bar_chart' })
     // Note: Admin does NOT have "Create Orders" per assignment spec

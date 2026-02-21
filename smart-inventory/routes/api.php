@@ -56,8 +56,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Product management
         Route::apiResource('products', ProductController::class);
 
-        // User management
+        // User management (full CRUD)
+        Route::get('/roles', [UserController::class, 'getRoles']);
         Route::get('/users/managers', [UserController::class, 'getManagers']);
+        Route::apiResource('users', UserController::class);
     });
 
     // =============================
