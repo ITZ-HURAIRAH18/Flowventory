@@ -1,19 +1,25 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
 import api from '@/services/api'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
+const router = useRouter()
 
 const fromBranch = ref('')
-const toBranch = ref('')
-const productId = ref('')
-const quantity = ref(1)
-const loading = ref(false)
+const toBranch   = ref('')
+const productId  = ref('')
+const quantity   = ref(1)
+const loading    = ref(false)
+const fetching   = ref(true)
+const error      = ref('')
 
 const branches = ref([])
 const products = ref([])
 
 const fetchOptions = async () => {
+  fetching.value = true
   try {
     const [branchRes, productRes] = await Promise.all([
       api.get('/my-branches'),
@@ -21,14 +27,15 @@ const fetchOptions = async () => {
     ])
     branches.value = branchRes.data
     products.value = productRes.data.data || productRes.data
-  } catch (error) {
-    console.error('Failed to load options:', error)
+  } catch (err) {
+    error.value = 'Failed to load options. Please refresh.'
+  } finally {
+    fetching.value = false
   }
 }
 
 const transfer = async () => {
   if (!fromBranch.value || !toBranch.value || !productId.value || quantity.value < 1) {
-    alert('Please fill in all fields correctly.')
     return
   }
   if (fromBranch.value === toBranch.value) {
@@ -43,176 +50,238 @@ const transfer = async () => {
       product_id: productId.value,
       quantity: quantity.value
     })
-    alert('Stock transferred successfully!')
-    fromBranch.value = ''
-    toBranch.value = ''
-    productId.value = ''
-    quantity.value = 1
-  } catch (error) {
-    console.error('Failed to transfer stock:', error)
-    const msg = error.response?.data?.message || 'Failed to transfer stock. Please try again.'
+    router.push('/inventory')
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Failed to transfer stock.'
     alert(msg)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 onMounted(fetchOptions)
 </script>
 
 <template>
-  <div class="inventory-form">
-    <router-link to="/inventory" class="back-link">
-      <span class="material-symbols-outlined">arrow_back</span>
-      Back to Inventory
-    </router-link>
-    <h2>Transfer Stock</h2>
-    <p class="form-subtitle">Move stock between branches by selecting source, destination, product, and quantity.</p>
+  <div class="tr-page">
+    
+    <LoadingScreen v-if="fetching" :show="fetching" message="Configuring inventory…" />
 
-    <form @submit.prevent="transfer">
-      <div class="form-group">
-        <label for="from-branch">From Branch</label>
-        <select id="from-branch" v-model="fromBranch" required>
-          <option value="" disabled>-- Select Source Branch --</option>
-          <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-            {{ branch.name }}
-          </option>
-        </select>
+    <!-- Header -->
+    <div class="tr-header">
+      <router-link to="/inventory" class="tr-back">
+        <span class="material-symbols-outlined">arrow_back</span>
+        Back to Inventory
+      </router-link>
+      <div class="tr-title-row">
+        <div class="tr-icon">
+          <span class="material-symbols-outlined">local_shipping</span>
+        </div>
+        <div>
+          <h1 class="tr-title">Stock Transfer</h1>
+          <p class="tr-subtitle">Move products from one branch to another securely</p>
+        </div>
       </div>
+    </div>
 
-      <div class="form-group">
-        <label for="to-branch">To Branch</label>
-        <select id="to-branch" v-model="toBranch" required>
-          <option value="" disabled>-- Select Destination Branch --</option>
-          <option
-            v-for="branch in branches"
-            :key="branch.id"
-            :value="branch.id"
-            :disabled="branch.id === fromBranch"
-          >
-            {{ branch.name }}
-          </option>
-        </select>
-      </div>
+    <!-- Container -->
+    <div class="tr-container">
+      <form class="tr-form" @submit.prevent="transfer">
+        
+        <div v-if="error" class="tr-error">
+          <span class="material-symbols-outlined">error</span>
+          {{ error }}
+        </div>
 
-      <div class="form-group">
-        <label for="product-select">Product</label>
-        <select id="product-select" v-model="productId" required>
-          <option value="" disabled>-- Select Product --</option>
-          <option
-            v-for="product in products"
-            :key="product.id"
-            :value="product.id"
-            :disabled="product.status === 'inactive'"
-          >
-            {{ product.name }} (SKU: {{ product.sku }}){{ product.status === 'inactive' ? ' [Inactive]' : '' }}
-          </option>
-        </select>
-      </div>
+        <div class="tr-split">
+          <!-- Source -->
+          <div class="tr-field">
+            <label class="tr-label">
+              <span class="material-symbols-outlined">outbox</span>
+              Source Branch
+            </label>
+            <div class="tr-select-wrap">
+              <select v-model="fromBranch" class="tr-input tr-select" required>
+                <option value="" disabled>— From —</option>
+                <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+              </select>
+              <span class="material-symbols-outlined tr-arrow">expand_more</span>
+            </div>
+          </div>
 
-      <div class="form-group">
-        <label for="quantity-input">Quantity</label>
-        <input
-          id="quantity-input"
-          type="number"
-          v-model.number="quantity"
-          min="1"
-          placeholder="Enter quantity to transfer"
-          required
-        />
-      </div>
+          <!-- Destination -->
+          <div class="tr-field">
+            <label class="tr-label">
+              <span class="material-symbols-outlined">inbox</span>
+              Destination
+            </label>
+            <div class="tr-select-wrap">
+              <select v-model="toBranch" class="tr-input tr-select" required>
+                <option value="" disabled>— To —</option>
+                <option 
+                  v-for="b in branches" 
+                  :key="b.id" 
+                  :value="b.id"
+                  :disabled="b.id === fromBranch"
+                >
+                  {{ b.name }}
+                </option>
+              </select>
+              <span class="material-symbols-outlined tr-arrow">expand_more</span>
+            </div>
+          </div>
+        </div>
 
-      <button type="submit" :disabled="loading" class="btn-submit">
-        {{ loading ? 'Transferring...' : 'Transfer Stock' }}
-      </button>
-    </form>
+        <!-- Product -->
+        <div class="tr-field">
+          <label class="tr-label">
+            <span class="material-symbols-outlined">inventory_2</span>
+            Product to Move
+          </label>
+          <div class="tr-select-wrap">
+            <select v-model="productId" class="tr-input tr-select" required>
+              <option value="" disabled>— Select product —</option>
+              <option 
+                v-for="p in products" 
+                :key="p.id" 
+                :value="p.id"
+                :disabled="p.status === 'inactive'"
+              >
+                {{ p.name }} {{ p.sku ? `(${p.sku})` : '' }}
+              </option>
+            </select>
+            <span class="material-symbols-outlined tr-arrow">expand_more</span>
+          </div>
+        </div>
+
+        <!-- Qty -->
+        <div class="tr-field">
+          <label class="tr-label">
+            <span class="material-symbols-outlined">numbers</span>
+            Transfer Quantity
+          </label>
+          <input 
+            type="number" 
+            v-model.number="quantity" 
+            class="tr-input" 
+            min="1" 
+            placeholder="0"
+            required
+          />
+        </div>
+
+        <!-- Actions -->
+        <div class="tr-actions">
+          <button type="button" class="tr-btn-cancel" @click="router.push('/inventory')">Cancel</button>
+          <button type="submit" class="tr-btn-save" :disabled="loading || !fromBranch || !toBranch || !productId">
+            <span v-if="loading" class="tr-spinner"></span>
+            <span v-else class="material-symbols-outlined">move_down</span>
+            {{ loading ? 'Processing…' : 'Execute Transfer' }}
+          </button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
-.inventory-form {
-  max-width: 500px;
+.tr-page {
+  animation: pageIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #818cf8;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 1rem;
-  transition: color 0.2s;
+/* Header */
+.tr-header { margin-bottom: 2rem; }
+.tr-back {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: #A1887F; text-decoration: none; font-size: 0.85rem; font-weight: 600;
+  margin-bottom: 1.25rem; transition: color 0.2s;
+}
+.tr-back:hover { color: #5D4037; }
+.tr-back .material-symbols-outlined { font-size: 18px; }
+
+.tr-title-row { display: flex; align-items: center; gap: 1rem; }
+.tr-icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: #3E2723;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(62,39,35,0.22);
+}
+.tr-icon .material-symbols-outlined { color: #fff; font-size: 26px; }
+
+.tr-title { font-size: 1.6rem; font-weight: 800; color: #3E2723; margin: 0; letter-spacing: -0.03em; }
+.tr-subtitle { font-size: 0.85rem; color: #A1887F; margin: 0; }
+
+/* Container */
+.tr-container {
+  max-width: 580px; background: #fff;
+  border: 1.5px solid #E0D7D0; border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(93,64,55,0.06);
+  overflow: hidden;
 }
 
-.back-link:hover {
-  color: #a5b4fc;
+.tr-form { padding: 2rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+.tr-error {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem; background: #FFF5F5; border: 1px solid #fca5a5;
+  border-radius: 10px; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.5rem;
 }
 
-.back-link .material-symbols-outlined {
-  font-size: 18px;
-}
+.tr-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
-.inventory-form h2 {
-  margin-bottom: 0.25rem;
+.tr-field { display: flex; flex-direction: column; gap: 0.45rem; }
+.tr-label {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.85rem; font-weight: 700; color: #5D4037;
 }
+.tr-label .material-symbols-outlined { font-size: 16px; color: #A1887F; }
 
-.form-subtitle {
-  color: #888;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1.2rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.form-group select,
-.form-group input {
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #444;
-  border-radius: 6px;
-  background: #1a1a2e;
-  color: #eee;
-  font-size: 0.95rem;
+.tr-input {
+  width: 100%; padding: 0.75rem 1rem; background: #FAF8F6;
+  border: 1.5px solid #EDE8E4; border-radius: 11px;
+  font-size: 0.92rem; color: #3E2723; font-family: inherit;
+  outline: none; transition: border-color 0.2s, background 0.2s;
   box-sizing: border-box;
 }
+.tr-input:focus { border-color: #A1887F; background: #fff; }
 
-.form-group select:focus,
-.form-group input:focus {
-  outline: none;
-  border-color: #646cff;
-  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+.tr-select-wrap { position: relative; }
+.tr-select { appearance: none; padding-right: 2.5rem; cursor: pointer; }
+.tr-arrow {
+  position: absolute; right: 0.85rem; top: 50%; transform: translateY(-50%);
+  color: #BCAAA4; pointer-events: none; font-size: 20px;
 }
 
-.btn-submit {
-  width: 100%;
-  padding: 0.7rem;
-  background: #646cff;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin-top: 0.5rem;
+.tr-actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+.tr-btn-cancel {
+  flex: 1; padding: 0.75rem; background: #FAF8F6; border: 1.5px solid #EDE8E4;
+  border-radius: 12px; font-size: 0.9rem; font-weight: 600; color: #795548;
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
 }
+.tr-btn-cancel:hover { background: #fff; border-color: #D7CCC8; }
 
-.btn-submit:hover:not(:disabled) {
-  background: #535bf2;
+.tr-btn-save {
+  flex: 1.6; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #5D4037, #795548);
+  color: #fff; border: none; border-radius: 12px;
+  font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(93,64,55,0.25);
+  transition: all 0.2s; font-family: inherit;
 }
+.tr-btn-save:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(93,64,55,0.3); }
+.tr-btn-save:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.tr-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px) { .tr-split { grid-template-columns: 1fr; } }
 </style>

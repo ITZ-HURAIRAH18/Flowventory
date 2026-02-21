@@ -1,414 +1,387 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { reactive, ref, computed, onMounted } from 'vue'
 import userService from '@/services/userService'
 
-const route = useRoute()
-const router = useRouter()
+const props = defineProps({ userObject: Object })
+const emit  = defineEmits(['saved', 'close'])
+
+const isEdit = computed(() => !!props.userObject?.id)
 
 const form = reactive({
-  name: '',
-  email: '',
-  password: '',
+  name:                  props.userObject?.name    || '',
+  email:                 props.userObject?.email   || '',
+  password:              '',
   password_confirmation: '',
-  role_id: ''
+  role_id:               props.userObject?.role_id || ''
 })
 
-const roles = ref([])
-const errors = ref({})
-const generalError = ref('')
-const loading = ref(false)
-const rolesLoading = ref(true)
-const isEdit = !!route.params.id
+const roles     = ref([])
+const saving    = ref(false)
+const error     = ref('')
+const rolesLoad = ref(true)
+const errors    = reactive({ name: '', email: '', role_id: '', password: '' })
 
-// Fetch roles for dropdown
+/* ── fetch roles ── */
 const fetchRoles = async () => {
-  rolesLoading.value = true
+  rolesLoad.value = true
   try {
     const res = await userService.getRoles()
     roles.value = res.data
-  } catch (err) {
-    generalError.value = 'Failed to load roles.'
+  } catch {
+    error.value = 'Failed to load user roles.'
+  } finally {
+    rolesLoad.value = false
   }
-  rolesLoading.value = false
 }
 
-// If editing, fetch existing user data
-const fetchUser = async () => {
-  if (!isEdit) return
+/* ── validation ── */
+const validate = () => {
+  errors.name   = form.name.trim() ? '' : 'Full name is required.'
+  errors.email  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) ? '' : 'Valid email is required.'
+  errors.role_id = form.role_id ? '' : 'Please select a role.'
+  
+  if (!isEdit.value && !form.password) {
+    errors.password = 'Password is required for new users.'
+  } else if (form.password && form.password.length < 8) {
+    errors.password = 'Password must be at least 8 characters.'
+  } else if (form.password !== form.password_confirmation) {
+    errors.password = 'Passwords do not match.'
+  } else {
+    errors.password = ''
+  }
+
+  return !errors.name && !errors.email && !errors.role_id && !errors.password
+}
+
+const submitForm = async () => {
+  if (!validate()) return
+  saving.value = true
+  error.value  = ''
   try {
-    const res = await userService.get(route.params.id)
-    const user = res.data
-    form.name = user.name
-    form.email = user.email
-    form.role_id = user.role_id
-    // Don't populate password fields on edit
-  } catch (err) {
-    generalError.value = 'Failed to load user data.'
-  }
-}
-
-onMounted(async () => {
-  await fetchRoles()
-  await fetchUser()
-})
-
-const roleLabel = (roleName) => {
-  const map = {
-    super_admin: 'Super Admin',
-    branch_manager: 'Branch Manager',
-    sales_user: 'Sales User'
-  }
-  return map[roleName] || roleName
-}
-
-const submit = async () => {
-  errors.value = {}
-  generalError.value = ''
-  loading.value = true
-
-  try {
-    if (isEdit) {
-      await userService.update(route.params.id, form)
+    if (isEdit.value) {
+      await userService.update(props.userObject.id, form)
     } else {
       await userService.create(form)
     }
-    router.push('/users')
+    emit('saved')
+    emit('close')
   } catch (err) {
+    error.value = err?.response?.data?.message || 'An error occurred. Please try again.'
     if (err.response?.status === 422 && err.response?.data?.errors) {
-      errors.value = err.response.data.errors
-    } else if (err.response?.data?.message) {
-      generalError.value = err.response.data.message
-    } else {
-      generalError.value = 'An unexpected error occurred. Please try again.'
+      const serverErrors = err.response.data.errors
+      Object.keys(serverErrors).forEach(key => {
+        if (errors.hasOwnProperty(key)) errors[key] = serverErrors[key][0]
+      })
     }
+  } finally {
+    saving.value = false
   }
+}
 
-  loading.value = false
+onMounted(fetchRoles)
+
+const roleLabel = (name) => {
+  const map = { super_admin: 'Super Admin', branch_manager: 'Branch Manager', sales_user: 'Sales User' }
+  return map[name] || name
 }
 </script>
 
 <template>
-  <div class="user-form-page">
-    <router-link to="/users" class="back-link">
-      <span class="material-symbols-outlined">arrow_back</span>
-      Back to Users
-    </router-link>
+  <div class="uf-wrap">
 
-    <h2>
-      <span class="material-symbols-outlined title-icon">{{ isEdit ? 'edit' : 'person_add' }}</span>
-      {{ isEdit ? 'Edit User' : 'Create New User' }}
-    </h2>
-    <p class="form-subtitle">
-      {{ isEdit ? 'Update the user details below.' : 'Fill in the details to create a new user account.' }}
-    </p>
-
-    <!-- General error banner -->
-    <div v-if="generalError" class="error-banner">
-      <span class="material-symbols-outlined">error</span>
-      {{ generalError }}
+    <!-- Header -->
+    <div class="uf-head">
+      <div class="uf-head-inner">
+        <div class="uf-head-icon">
+          <span class="material-symbols-outlined">{{ isEdit ? 'manage_accounts' : 'person_add' }}</span>
+        </div>
+        <div>
+          <h2 class="uf-title">{{ isEdit ? 'Edit User' : 'New User Account' }}</h2>
+          <p class="uf-subtitle">{{ isEdit ? 'Update profile and permissions.' : 'Setup a new user for the system.' }}</p>
+        </div>
+      </div>
+      <button class="uf-close" @click="$emit('close')" aria-label="Close">
+        <span class="material-symbols-outlined">close</span>
+      </button>
     </div>
 
-    <form @submit.prevent="submit">
+    <!-- Form -->
+    <form class="uf-body" @submit.prevent="submitForm" novalidate>
 
-      <!-- Name -->
-      <div class="form-group" :class="{ 'has-error': errors.name }">
-        <label for="user-name">
-          <span class="material-symbols-outlined label-icon">badge</span>
+      <!-- Error banner -->
+      <div v-if="error" class="uf-error-banner">
+        <span class="material-symbols-outlined">error</span>
+        {{ error }}
+      </div>
+
+      <!-- Full Name -->
+      <div class="uf-field" :class="{ 'has-error': errors.name }">
+        <label class="uf-label" for="user-name">
+          <span class="material-symbols-outlined">badge</span>
           Full Name
         </label>
         <input
           id="user-name"
           v-model="form.name"
-          type="text"
-          placeholder="Enter full name"
-          required
+          class="uf-input"
+          placeholder="e.g. John Doe"
+          @input="errors.name = ''"
         />
-        <span v-if="errors.name" class="field-error">{{ errors.name[0] }}</span>
+        <p v-if="errors.name" class="uf-err-msg">{{ errors.name }}</p>
       </div>
 
       <!-- Email -->
-      <div class="form-group" :class="{ 'has-error': errors.email }">
-        <label for="user-email">
-          <span class="material-symbols-outlined label-icon">mail</span>
+      <div class="uf-field" :class="{ 'has-error': errors.email }">
+        <label class="uf-label" for="user-email">
+          <span class="material-symbols-outlined">mail</span>
           Email Address
         </label>
         <input
           id="user-email"
           v-model="form.email"
           type="email"
-          placeholder="user@example.com"
-          required
+          class="uf-input"
+          placeholder="john@flowventory.com"
+          @input="errors.email = ''"
         />
-        <span v-if="errors.email" class="field-error">{{ errors.email[0] }}</span>
+        <p v-if="errors.email" class="uf-err-msg">{{ errors.email }}</p>
       </div>
 
-      <!-- Role -->
-      <div class="form-group" :class="{ 'has-error': errors.role_id }">
-        <label for="user-role">
-          <span class="material-symbols-outlined label-icon">shield_person</span>
-          Role
+      <!-- Role Selection -->
+      <div class="uf-field" :class="{ 'has-error': errors.role_id }">
+        <label class="uf-label" for="user-role">
+          <span class="material-symbols-outlined">shield_person</span>
+          System Role
         </label>
-        <select id="user-role" v-model="form.role_id" required :disabled="rolesLoading">
-          <option value="" disabled>{{ rolesLoading ? 'Loading roles...' : 'Select a role' }}</option>
-          <option v-for="role in roles" :key="role.id" :value="role.id">
-            {{ roleLabel(role.name) }}
-          </option>
-        </select>
-        <span v-if="errors.role_id" class="field-error">{{ errors.role_id[0] }}</span>
+        <div class="uf-select-wrap">
+          <select
+            id="user-role"
+            v-model="form.role_id"
+            class="uf-input uf-select"
+            :disabled="rolesLoad"
+          >
+            <option value="">— {{ rolesLoad ? 'Loading roles...' : 'Select a role' }} —</option>
+            <option v-for="r in roles" :key="r.id" :value="r.id">{{ roleLabel(r.name) }}</option>
+          </select>
+          <span class="material-symbols-outlined uf-select-arrow">expand_more</span>
+        </div>
+        <p v-if="errors.role_id" class="uf-err-msg">{{ errors.role_id }}</p>
       </div>
 
-      <!-- Password -->
-      <div class="form-row">
-        <div class="form-group" :class="{ 'has-error': errors.password }">
-          <label for="user-password">
-            <span class="material-symbols-outlined label-icon">lock</span>
+      <!-- Passwords Row -->
+      <div class="uf-row">
+        <div class="uf-field" :class="{ 'has-error': errors.password }">
+          <label class="uf-label" for="user-pass">
+            <span class="material-symbols-outlined">lock</span>
             {{ isEdit ? 'New Password' : 'Password' }}
           </label>
           <input
-            id="user-password"
+            id="user-pass"
             v-model="form.password"
             type="password"
-            :placeholder="isEdit ? 'Leave blank to keep current' : 'Min 8 characters'"
-            :required="!isEdit"
+            class="uf-input"
+            :placeholder="isEdit ? '••••••••' : 'Min 8 chars'"
+            @input="errors.password = ''"
           />
-          <span v-if="errors.password" class="field-error">{{ errors.password[0] }}</span>
         </div>
-
-        <div class="form-group" :class="{ 'has-error': errors.password_confirmation }">
-          <label for="user-password-confirm">
-            <span class="material-symbols-outlined label-icon">lock_reset</span>
-            Confirm Password
+        <div class="uf-field">
+          <label class="uf-label" for="user-conf">
+            <span class="material-symbols-outlined">lock_reset</span>
+            Confirm
           </label>
           <input
-            id="user-password-confirm"
+            id="user-conf"
             v-model="form.password_confirmation"
             type="password"
-            :placeholder="isEdit ? 'Leave blank to keep current' : 'Re-enter password'"
-            :required="!isEdit"
+            class="uf-input"
+            placeholder="••••••••"
           />
         </div>
       </div>
-
-      <!-- Password hint for edit mode -->
-      <p v-if="isEdit" class="password-hint">
-        <span class="material-symbols-outlined hint-icon">info</span>
-        Leave password fields empty to keep the current password unchanged.
+      <p v-if="errors.password" class="uf-err-msg">{{ errors.password }}</p>
+      <p v-if="isEdit && !errors.password" class="uf-hint">
+        <span class="material-symbols-outlined">info</span>
+        Leave blank to keep current password.
       </p>
 
-      <button type="submit" :disabled="loading" class="btn-submit">
-        <span v-if="loading" class="material-symbols-outlined spin">progress_activity</span>
-        <span v-else class="material-symbols-outlined btn-icon">{{ isEdit ? 'save' : 'person_add' }}</span>
-        {{ loading ? 'Saving...' : (isEdit ? 'Update User' : 'Create User') }}
-      </button>
+      <!-- Actions -->
+      <div class="uf-actions">
+        <button type="button" class="uf-btn-cancel" @click="$emit('close')">Cancel</button>
+        <button type="submit" class="uf-btn-save" :disabled="saving" id="user-save-btn">
+          <span v-if="saving" class="uf-spinner"></span>
+          <span v-else class="material-symbols-outlined">{{ isEdit ? 'save' : 'person_add' }}</span>
+          {{ saving ? 'Saving…' : (isEdit ? 'Update User' : 'Create User') }}
+        </button>
+      </div>
+
     </form>
   </div>
 </template>
 
 <style scoped>
-.user-form-page {
-  max-width: 560px;
-  animation: fadeIn 0.4s ease;
+/* ════════════════════════════════
+   WRAPPER
+════════════════════════════════ */
+.uf-wrap {
+  background: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #818cf8;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 1rem;
-  transition: color 0.2s;
-}
-
-.back-link:hover {
-  color: #a5b4fc;
-}
-
-.back-link .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.user-form-page h2 {
+/* ════════════════════════════════
+   HEADER
+════════════════════════════════ */
+.uf-head {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 0.25rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.5rem 1.75rem 1.25rem;
+  background: linear-gradient(135deg, #5D4037, #795548);
 }
-
-.title-icon {
-  font-size: 26px;
-  color: #818cf8;
+.uf-head-inner {
+  display: flex; align-items: center; gap: 0.85rem;
 }
-
-.form-subtitle {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0 0 1.5rem;
-}
-
-/* ─── Error Banner ─── */
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 8px;
-  color: #f87171;
-  font-size: 0.88rem;
-  font-weight: 500;
-  margin-bottom: 1.25rem;
-}
-
-.error-banner .material-symbols-outlined {
-  font-size: 20px;
+.uf-head-icon {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: rgba(255,255,255,0.18);
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.uf-head-icon .material-symbols-outlined { font-size: 22px; color: #fff; }
 
-/* ─── Form Group ─── */
-.form-group {
-  margin-bottom: 1.2rem;
+.uf-title {
+  font-size: 1.1rem; font-weight: 800; color: #fff;
+  margin: 0 0 0.15rem; letter-spacing: -0.02em;
 }
+.uf-subtitle {
+  font-size: 0.78rem; color: rgba(255,255,255,0.9); margin: 0;
+}
+.uf-close {
+  background: rgba(255,255,255,0.15); border: none;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #fff; transition: background 0.2s;
+  flex-shrink: 0; margin-top: 2px;
+}
+.uf-close:hover { background: rgba(255,255,255,0.28); }
+.uf-close .material-symbols-outlined { font-size: 18px; }
 
-.form-group label {
+/* ════════════════════════════════
+   FORM BODY
+════════════════════════════════ */
+.uf-body {
+  padding: 1.5rem 1.75rem 1.75rem;
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.4rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #cbd5e1;
+  flex-direction: column;
+  gap: 1.1rem;
 }
 
-.label-icon {
-  font-size: 16px;
-  color: #64748b;
+.uf-error-banner {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #FFF5F5; border: 1px solid #fca5a5;
+  border-radius: 10px; color: #dc2626; font-size: 0.83rem;
 }
+.uf-error-banner .material-symbols-outlined { font-size: 18px; }
 
-.form-group select,
-.form-group input {
+/* ════════════════════════════════
+   FIELD
+════════════════════════════════ */
+.uf-field { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.uf-label {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.82rem; font-weight: 600; color: #5D4037;
+}
+.uf-label .material-symbols-outlined { font-size: 16px; color: #8D6E63; }
+
+.uf-input {
   width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #444;
-  border-radius: 6px;
-  background: #1a1a2e;
-  color: #eee;
-  font-size: 0.95rem;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.form-group select:focus,
-.form-group input:focus {
+  padding: 0.7rem 0.95rem;
+  background: #FAF8F6;
+  border: 1.5px solid #EDE8E4;
+  border-radius: 11px;
+  font-size: 0.9rem;
+  color: #3E2723;
+  font-family: inherit;
   outline: none;
-  border-color: #646cff;
-  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+  transition: border-color 0.2s, background 0.2s;
+  box-sizing: border-box;
 }
-
-.form-group select option {
-  background: #1a1a2e;
-  color: #eee;
+.uf-input:focus {
+  border-color: #A1887F;
+  background: #fff;
 }
+.uf-input::placeholder { color: #BCAAA4; }
 
-/* Error state */
-.form-group.has-error select,
-.form-group.has-error input {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
-}
+.has-error .uf-input { border-color: #f87171; background: #fff; }
+.uf-err-msg { font-size: 0.76rem; color: #dc2626; margin: 0; }
 
-.field-error {
-  display: block;
-  margin-top: 0.35rem;
-  color: #f87171;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-/* ─── Side-by-side row ─── */
-.form-row {
+.uf-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
-@media (max-width: 480px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+.uf-hint {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.75rem; color: #A1887F; margin: -0.5rem 0 0;
+}
+.uf-hint .material-symbols-outlined { font-size: 14px; }
+
+/* Select */
+.uf-select-wrap { position: relative; }
+.uf-select { appearance: none; padding-right: 2.5rem; cursor: pointer; }
+.uf-select-arrow {
+  position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+  font-size: 20px; color: #A1887F; pointer-events: none;
 }
 
-/* ─── Password Hint ─── */
-.password-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: -0.5rem 0 1.2rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(99, 102, 241, 0.06);
-  border: 1px solid rgba(99, 102, 241, 0.15);
-  border-radius: 6px;
-  color: #94a3b8;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.hint-icon {
-  font-size: 16px;
-  color: #818cf8;
-  flex-shrink: 0;
-}
-
-/* ─── Submit Button ─── */
-.btn-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.7rem;
-  background: #646cff;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
+/* ════════════════════════════════
+   ACTIONS
+════════════════════════════════ */
+.uf-actions {
+  display: flex; align-items: center; gap: 0.75rem;
   margin-top: 0.5rem;
 }
-
-.btn-submit:hover:not(:disabled) {
-  background: #535bf2;
+.uf-btn-cancel {
+  flex: 1;
+  padding: 0.7rem;
+  background: #FAF8F6;
+  border: 1.5px solid #EDE8E4;
+  border-radius: 11px;
+  font-size: 0.88rem; font-weight: 600;
+  color: #795548; cursor: pointer;
+  font-family: inherit; transition: all 0.2s;
 }
+.uf-btn-cancel:hover { background: #fff; border-color: #D7CCC8; }
 
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.uf-btn-save {
+  flex: 2;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.7rem 1.25rem;
+  background: linear-gradient(135deg, #5D4037, #795548);
+  color: #fff;
+  border: none; border-radius: 11px;
+  font-size: 0.88rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 4px 14px rgba(93,64,55,0.25);
+  transition: all 0.2s;
 }
+.uf-btn-save:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(93,64,55,0.3); }
+.uf-btn-save:disabled { opacity: 0.65; cursor: not-allowed; }
+.uf-btn-save .material-symbols-outlined { font-size: 18px; }
 
-.btn-icon {
-  font-size: 18px;
+.uf-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  font-size: 18px;
+@media (max-width: 480px) {
+  .uf-row { grid-template-columns: 1fr; }
 }
 </style>
+

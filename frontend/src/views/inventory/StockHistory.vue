@@ -1,51 +1,37 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '@/services/inventoryService'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
 const history = ref([])
-const loading = ref(false)
-const error = ref(null)
+const loading = ref(true)
+const error   = ref(null)
 
 const fetchHistory = async () => {
   loading.value = true
   error.value = null
   try {
     const res = await api.history()
-    history.value = res.data
+    history.value = res.data.data ?? res.data
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to load stock history'
+    error.value = 'Failed to load stock history logs.'
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
-// Format action type for display
 const formatAction = (type) => {
-  const labels = {
-    add: 'Added',
-    adjust: 'Adjusted',
-    transfer_in: 'Transfer In',
-    transfer_out: 'Transfer Out'
-  }
+  const labels = { add: 'Inbound', adjust: 'Adjustment', transfer_in: 'Stock In', transfer_out: 'Stock Out' }
   return labels[type] || type
 }
 
 const actionClass = (type) => {
-  const map = {
-    add: 'action-add',
-    adjust: 'action-adjust',
-    transfer_in: 'action-in',
-    transfer_out: 'action-out'
-  }
+  const map = { add: 'act-add', adjust: 'act-adj', transfer_in: 'act-in', transfer_out: 'act-out' }
   return map[type] || ''
 }
 
 const actionIcon = (type) => {
-  const map = {
-    add: 'add_circle',
-    adjust: 'tune',
-    transfer_in: 'arrow_downward',
-    transfer_out: 'arrow_upward'
-  }
+  const map = { add: 'add_circle', adjust: 'tune', transfer_in: 'login', transfer_out: 'logout' }
   return map[type] || 'swap_horiz'
 }
 
@@ -53,288 +39,192 @@ onMounted(fetchHistory)
 </script>
 
 <template>
-  <div class="history-page">
+  <div class="sh-page">
+
+    <LoadingScreen v-if="loading" :show="loading" message="Retrieving audit logs…" />
+
     <!-- Header -->
-    <div class="page-header">
-      <router-link to="/inventory" class="back-link">
+    <div class="sh-header">
+      <router-link to="/inventory" class="sh-back">
         <span class="material-symbols-outlined">arrow_back</span>
         Back to Inventory
       </router-link>
-      <h1>
-        <span class="material-symbols-outlined page-icon">history</span>
-        Stock Movement History
-      </h1>
-      <p class="page-sub">Complete audit trail of all stock changes</p>
+      <div class="sh-title-row">
+        <div class="sh-icon">
+          <span class="material-symbols-outlined">history</span>
+        </div>
+        <div>
+          <h1 class="sh-title">Movement Logs</h1>
+          <p class="sh-subtitle">Complete historical audit trail of all warehouse activities</p>
+        </div>
+      </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <span class="material-symbols-outlined spin">progress_activity</span>
-      Loading history...
-    </div>
+    <!-- Listing -->
+    <div class="sh-table-container">
+      <div class="sh-table-head">
+        <div class="sh-table-title">
+          <span class="material-symbols-outlined">view_list</span>
+          Activity Stream
+        </div>
+        <button class="sh-refresh" @click="fetchHistory">
+          <span class="material-symbols-outlined">refresh</span>
+          Refresh Logs
+        </button>
+      </div>
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-state">
-      <span class="material-symbols-outlined error-icon">error</span>
-      <p>{{ error }}</p>
-      <button class="retry-btn" @click="fetchHistory">
-        <span class="material-symbols-outlined">refresh</span>
-        Retry
-      </button>
-    </div>
+      <div v-if="error" class="sh-error">
+        <span class="material-symbols-outlined">error</span>
+        {{ error }}
+        <button @click="fetchHistory" class="retry-btn">Retry</button>
+      </div>
 
-    <!-- Empty -->
-    <div v-else-if="history.length === 0" class="empty-state">
-      <span class="material-symbols-outlined empty-icon">history</span>
-      <p>No stock movements recorded yet</p>
-    </div>
+      <div v-else-if="history.length === 0" class="sh-empty">
+        <span class="material-symbols-outlined sh-empty-icon">history_toggle_off</span>
+        <h3>No activity recorded</h3>
+        <p>No stock movements have been logged for this period.</p>
+      </div>
 
-    <!-- History Table -->
-    <div v-else class="table-section">
-      <div class="table-wrapper">
-        <table>
+      <div v-else class="sh-table-wrap">
+        <table class="sh-table">
           <thead>
             <tr>
-              <th>Action</th>
-              <th>Product</th>
-              <th>Branch</th>
-              <th>Quantity</th>
-              <th>Date</th>
+              <th>Stock Event</th>
+              <th>Product Information</th>
+              <th>Storage Site</th>
+              <th>Variance</th>
+              <th>Timestamp</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in history" :key="item.id">
               <td>
-                <span class="action-badge" :class="actionClass(item.action)">
+                <div class="sh-event-tag" :class="actionClass(item.action)">
                   <span class="material-symbols-outlined">{{ actionIcon(item.action) }}</span>
                   {{ formatAction(item.action) }}
-                </span>
+                </div>
               </td>
-              <td class="product-name">{{ item.product.name }}</td>
-              <td>{{ item.branch.name }}</td>
               <td>
-                <span class="qty" :class="{ 'qty-positive': item.quantity > 0, 'qty-negative': item.quantity < 0 }">
+                <div class="sh-prod">
+                  <p class="sh-prod-name">{{ item.product?.name || 'Unknown' }}</p>
+                  <p class="sh-prod-sku">{{ item.product?.sku || 'N/A' }}</p>
+                </div>
+              </td>
+              <td class="sh-branch">
+                <span class="material-symbols-outlined">storefront</span>
+                {{ item.branch?.name || 'Global' }}
+              </td>
+              <td>
+                <span class="sh-qty" :class="item.quantity > 0 ? 'qty-pos' : 'qty-neg'">
                   {{ item.quantity > 0 ? '+' : '' }}{{ item.quantity }}
                 </span>
               </td>
-              <td class="date-cell">{{ new Date(item.created_at).toLocaleString() }}</td>
+              <td class="sh-date">
+                {{ new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
   </div>
 </template>
 
 <style scoped>
-.history-page {
-  animation: fadeIn 0.4s ease;
+.sh-page {
+  animation: pageIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Header */
+.sh-header { margin-bottom: 2rem; }
+.sh-back {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: #A1887F; text-decoration: none; font-size: 0.85rem; font-weight: 600;
+  margin-bottom: 1.25rem; transition: color 0.2s;
 }
+.sh-back:hover { color: #5D4037; }
+.sh-back .material-symbols-outlined { font-size: 18px; }
 
-/* ── Header ── */
-.page-header {
-  margin-bottom: 1.5rem;
+.sh-title-row { display: flex; align-items: center; gap: 1rem; }
+.sh-icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: #3E2723;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(62,39,35,0.22);
 }
+.sh-icon .material-symbols-outlined { color: #fff; font-size: 26px; }
 
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #818cf8;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 0.75rem;
-  transition: color 0.2s;
-}
+.sh-title { font-size: 1.6rem; font-weight: 800; color: #3E2723; margin: 0; letter-spacing: -0.03em; }
+.sh-subtitle { font-size: 0.85rem; color: #A1887F; margin: 0; }
 
-.back-link:hover {
-  color: #a5b4fc;
+/* Table Container */
+.sh-table-container {
+  background: #fff; border: 1.5px solid #E0D7D0; border-radius: 20px;
+  overflow: hidden; box-shadow: 0 4px 20px rgba(93,64,55,0.06);
 }
+.sh-table-head {
+  padding: 1.25rem 1.75rem; border-bottom: 1px solid #F3EDE9;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sh-table-title {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.95rem; font-weight: 800; color: #3E2723;
+}
+.sh-table-title .material-symbols-outlined { font-size: 18px; color: #8D6E63; }
 
-.back-link .material-symbols-outlined {
-  font-size: 18px;
+.sh-refresh {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 1rem; background: #FAF8F6; border: 1.5px solid #EDE8E4;
+  border-radius: 10px; font-size: 0.78rem; font-weight: 700; color: #5D4037;
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
 }
+.sh-refresh:hover { background: #fff; border-color: #D7CCC8; }
 
-.page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 0.3rem;
+.sh-table-wrap { overflow-x: auto; }
+.sh-table { width: 100%; border-collapse: collapse; }
+.sh-table th {
+  padding: 1rem 1.75rem; background: #FAF8F6; text-align: left;
+  font-size: 0.7rem; font-weight: 700; color: #795548; text-transform: uppercase; letter-spacing: 0.08em;
+  border-bottom: 1px solid #EDE8E4;
 }
+.sh-table td { padding: 1.1rem 1.75rem; border-bottom: 1px solid #F8F5F2; vertical-align: middle; }
+.sh-table tbody tr:hover td { background: #FFFAF8; }
 
-.page-icon {
-  font-size: 28px;
-  color: #a78bfa;
+/* Event Badges */
+.sh-event-tag {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.65rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
 }
+.sh-event-tag .material-symbols-outlined { font-size: 14px; }
 
-.page-sub {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0;
-}
+.act-add { background: #DCFCE7; color: #166534; }
+.act-adj { background: #FEF3C7; color: #92400E; }
+.act-in  { background: #DBEAFE; color: #1E40AF; }
+.act-out { background: #FEE2E2; color: #991B1B; }
 
-/* ── Loading / Empty / Error ── */
-.loading-state,
-.empty-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 5rem 1rem;
-  color: #64748b;
-  font-size: 0.95rem;
-}
+/* Content */
+.sh-prod-name { font-size: 0.9rem; font-weight: 700; color: #3E2723; margin: 0; }
+.sh-prod-sku  { font-size: 0.72rem; color: #A1887F; font-family: monospace; margin: 0; }
 
-.empty-icon {
-  font-size: 48px;
-  color: #334155;
-}
+.sh-branch { font-size: 0.85rem; font-weight: 600; color: #5D4037; display: flex; align-items: center; gap: 0.35rem; }
+.sh-branch .material-symbols-outlined { font-size: 16px; color: #BCAAA4; }
 
-.error-icon {
-  font-size: 48px;
-  color: #ef4444;
-}
+.sh-qty { font-size: 0.95rem; font-weight: 800; }
+.qty-pos { color: #166534; }
+.qty-neg { color: #991B1B; }
 
-.retry-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1.2rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-}
+.sh-date { font-size: 0.78rem; color: #A1887F; font-weight: 500; }
 
-.retry-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+.sh-empty { padding: 5rem 2rem; text-align: center; }
+.sh-empty-icon { font-size: 50px; color: #D7CCC8; margin-bottom: 1rem; }
+.sh-empty h3 { font-size: 1.1rem; color: #3E2723; margin: 0 0 0.4rem; }
+.sh-empty p { font-size: 0.85rem; color: #A1887F; margin: 0; }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  font-size: 22px;
-}
-
-/* ── Table ── */
-.table-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 1.25rem;
-}
-
-.table-wrapper {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 0.65rem 1rem;
-  text-align: left;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-td {
-  padding: 0.75rem 1rem;
-  font-size: 0.88rem;
-  color: #cbd5e1;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.product-name {
-  font-weight: 500;
-  color: #e2e8f0;
-}
-
-.date-cell {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-/* ── Action badges ── */
-.action-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.action-badge .material-symbols-outlined {
-  font-size: 16px;
-}
-
-.action-add {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-}
-
-.action-adjust {
-  background: rgba(251, 191, 36, 0.1);
-  color: #fbbf24;
-}
-
-.action-in {
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
-}
-
-.action-out {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-}
-
-/* ── Quantity ── */
-.qty {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.qty-positive {
-  color: #34d399;
-}
-
-.qty-negative {
-  color: #f87171;
-}
-
-/* ── Responsive ── */
-@media (max-width: 640px) {
-  .page-header h1 {
-    font-size: 1.3rem;
-  }
-}
+.sh-error { padding: 2rem; text-align: center; color: #dc2626; font-size: 0.9rem; }
+.retry-btn { margin-left: 0.5rem; text-decoration: underline; background: none; border: none; font-weight: 600; cursor: pointer; color: #dc2626; }
 </style>

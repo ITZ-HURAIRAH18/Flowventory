@@ -1,559 +1,409 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
 import userService from '@/services/userService'
+import UserForm from './UserForm.vue'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
-const router = useRouter()
-const users = ref([])
-const search = ref('')
-const roleFilter = ref('')
-const loading = ref(false)
-const error = ref('')
+const users       = ref([])
+const loading     = ref(true)
+const error       = ref('')
+const search      = ref('')
+const roleFilter  = ref('')
+const showModal   = ref(false)
+const editTarget  = ref(null)
+const deletingId  = ref(null)
 
+/* ── fetch ── */
 const fetchUsers = async () => {
   loading.value = true
-  error.value = ''
+  error.value   = ''
   try {
-    const params = {}
-    if (search.value) params.search = search.value
-    if (roleFilter.value) params.role = roleFilter.value
-
-    const res = await userService.getAll(params)
-    users.value = res.data.data
-  } catch (err) {
-    error.value = 'Failed to load users. Please try again.'
-    console.error(err)
-  }
-  loading.value = false
-}
-
-const deleteUser = async (id, name) => {
-  if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return
-  try {
-    await userService.delete(id)
-    fetchUsers()
-  } catch (err) {
-    if (err.response?.data?.message) {
-      alert(err.response.data.message)
-    } else {
-      alert('Failed to delete user.')
-    }
+    const res = await userService.getAll()
+    users.value = res.data.data ?? res.data
+  } catch {
+    error.value = 'Failed to load user list. Please try again.'
+  } finally {
+    loading.value = false
   }
 }
-
-const roleLabel = (roleName) => {
-  const map = {
-    super_admin: 'Super Admin',
-    branch_manager: 'Branch Manager',
-    sales_user: 'Sales User'
-  }
-  return map[roleName] || roleName
-}
-
-const roleBadgeClass = (roleName) => {
-  const map = {
-    super_admin: 'role-admin',
-    branch_manager: 'role-manager',
-    sales_user: 'role-sales'
-  }
-  return map[roleName] || ''
-}
-
-// Debounced search
-let searchTimer = null
-watch(search, () => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(fetchUsers, 300)
-})
-
-// Instant filter on role change
-watch(roleFilter, fetchUsers)
 
 onMounted(fetchUsers)
+
+/* ── filters ── */
+const filtered = computed(() => {
+  let list = users.value
+  const q = search.value.toLowerCase()
+  
+  if (q) {
+    list = list.filter(u => 
+      u.name.toLowerCase().includes(q) || 
+      u.email.toLowerCase().includes(q)
+    )
+  }
+  
+  if (roleFilter.value) {
+    list = list.filter(u => (u.role?.name || u.role) === roleFilter.value)
+  }
+  
+  return list
+})
+
+/* ── stats ── */
+const totalCount   = computed(() => users.value.length)
+const adminCount   = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'super_admin').length)
+const managerCount = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'branch_manager').length)
+const salesCount   = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'sales_user').length)
+
+/* ── helpers ── */
+const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+const roleLabel = (name) => {
+  const map = { super_admin: 'Super Admin', branch_manager: 'Branch Manager', sales_user: 'Sales User' }
+  return map[name] || name
+}
+
+/* ── actions ── */
+const openCreate = () => { editTarget.value = null; showModal.value = true }
+const openEdit   = (u) => { editTarget.value = u;    showModal.value = true }
+const onSaved    = () => { showModal.value = false; fetchUsers() }
+const onClose    = () => { showModal.value = false }
+
+const deleteUser = async (id, name) => {
+  if (!confirm(`Permanently delete user "${name}"? This cannot be undone.`)) return
+  deletingId.value = id
+  try {
+    await userService.delete(id)
+    users.value = users.value.filter(u => u.id !== id)
+  } catch {
+    alert('Failed to delete user.')
+  } finally {
+    deletingId.value = null
+  }
+}
 </script>
 
 <template>
-  <div class="user-page">
+  <div class="ul-page">
 
-    <!-- Page Header -->
-    <div class="page-header">
-      <h1>
-        <span class="material-symbols-outlined page-icon">group</span>
-        User Management
-      </h1>
-      <p class="page-sub">Create and manage users, assign roles</p>
-    </div>
-
-    <!-- Toolbar: Search + Filter + Create -->
-    <div class="toolbar">
-      <div class="toolbar-filters">
-        <!-- Search -->
-        <div class="search-box">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input
-            v-model="search"
-            placeholder="Search by name or email..."
-            class="search-input"
-          />
+    <!-- ══════ HEADER ══════ -->
+    <div class="ul-header">
+      <div class="ul-header-left">
+        <div class="ul-icon-wrap">
+          <span class="material-symbols-outlined">group</span>
         </div>
-
-        <!-- Role Filter -->
-        <select v-model="roleFilter" class="filter-select">
-          <option value="">All Roles</option>
-          <option value="super_admin">Super Admin</option>
-          <option value="branch_manager">Branch Manager</option>
-          <option value="sales_user">Sales User</option>
-        </select>
+        <div>
+          <h1 class="ul-title">User Management</h1>
+          <p class="ul-subtitle">Manage system access, roles, and user profiles</p>
+        </div>
       </div>
-
-      <button @click="router.push('/users/create')" class="btn-create">
+      <button class="btn-add" @click="openCreate" id="add-user-btn">
         <span class="material-symbols-outlined">person_add</span>
         Add User
       </button>
     </div>
 
-    <!-- Error State -->
-    <div v-if="error" class="error-banner">
+    <!-- ══════ STATS BAR ══════ -->
+    <div class="ul-stats">
+      <div class="stat-chip">
+        <span class="material-symbols-outlined stat-ico">group</span>
+        <span class="stat-val">{{ totalCount }}</span>
+        <span class="stat-lbl">Total</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-chip">
+        <span class="material-symbols-outlined stat-ico ico-red">shield_person</span>
+        <span class="stat-val">{{ adminCount }}</span>
+        <span class="stat-lbl">Admins</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-chip">
+        <span class="material-symbols-outlined stat-ico ico-blue">manage_accounts</span>
+        <span class="stat-val">{{ managerCount }}</span>
+        <span class="stat-lbl">Managers</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-chip">
+        <span class="material-symbols-outlined stat-ico ico-green">sell</span>
+        <span class="stat-val">{{ salesCount }}</span>
+        <span class="stat-lbl">Sales</span>
+      </div>
+    </div>
+
+    <!-- ══════ TOOLBAR ══════ -->
+    <div class="ul-toolbar">
+      <div class="search-wrap">
+        <span class="material-symbols-outlined search-ico">search</span>
+        <input
+          v-model="search"
+          class="search-input"
+          placeholder="Search by name or email…"
+        />
+        <button v-if="search" class="search-clear" @click="search = ''">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="filter-wrap">
+        <select v-model="roleFilter" class="role-select">
+          <option value="">All Roles</option>
+          <option value="super_admin">Super Admins</option>
+          <option value="branch_manager">Branch Managers</option>
+          <option value="sales_user">Sales Users</option>
+        </select>
+        <span class="material-symbols-outlined select-arrow">expand_more</span>
+      </div>
+    </div>
+
+    <!-- ══════ LOADING ══════ -->
+    <LoadingScreen v-if="loading" :show="loading" :duration="0" message="Fetching team directory…" />
+
+    <!-- ══════ ERROR ══════ -->
+    <div v-else-if="error" class="ul-error">
       <span class="material-symbols-outlined">error</span>
       {{ error }}
       <button @click="fetchUsers" class="retry-btn">Retry</button>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="loading-state">
-      <span class="material-symbols-outlined spin">progress_activity</span>
-      Loading users...
+    <!-- ══════ EMPTY ══════ -->
+    <div v-else-if="filtered.length === 0" class="ul-empty">
+      <span class="material-symbols-outlined ul-empty-icon">person_off</span>
+      <p class="ul-empty-title">{{ search || roleFilter ? 'No matching users found' : 'No users registered' }}</p>
+      <p class="ul-empty-sub">Try Adjusting your search or filters to find what you're looking for.</p>
     </div>
 
-    <!-- Empty State -->
-    <div v-else-if="users.length === 0 && !error" class="empty-state">
-      <span class="material-symbols-outlined empty-icon">person_off</span>
-      <p>No users found</p>
-      <p class="empty-hint" v-if="search || roleFilter">Try adjusting your search or filters</p>
-    </div>
+    <!-- ══════ CARDS GRID ══════ -->
+    <div v-else class="ul-grid">
+      <div
+        v-for="(user, i) in filtered"
+        :key="user.id"
+        class="user-card"
+        :style="{ animationDelay: `${i * 0.05}s` }"
+      >
+        <div class="uc-body">
+          <div class="uc-top">
+            <div class="uc-avatar">
+              {{ initials(user.name) }}
+            </div>
+            <div class="uc-info">
+              <h3 class="uc-name">{{ user.name }}</h3>
+              <p class="uc-email">{{ user.email }}</p>
+            </div>
+          </div>
+          
+          <div class="uc-meta">
+            <div class="uc-role-tag" :class="user.role?.name || user.role">
+              <span class="material-symbols-outlined">verified_user</span>
+              {{ roleLabel(user.role?.name || user.role) }}
+            </div>
+            <div class="uc-date">
+              Joined {{ new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) }}
+            </div>
+          </div>
 
-    <!-- User Table -->
-    <div v-else-if="!error" class="table-section">
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Joined</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="user in users" :key="user.id">
-              <td class="user-cell">
-                <div class="user-avatar-small">
-                  {{ user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) }}
-                </div>
-                <span class="user-name">{{ user.name }}</span>
-              </td>
-              <td class="email-cell">{{ user.email }}</td>
-              <td>
-                <span class="role-badge" :class="roleBadgeClass(user.role?.name)">
-                  {{ roleLabel(user.role?.name) }}
-                </span>
-              </td>
-              <td class="date-cell">
-                {{ new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }}
-              </td>
-              <td class="actions-cell">
-                <button
-                  @click="router.push(`/users/${user.id}/edit`)"
-                  class="action-btn edit-btn"
-                  title="Edit User"
-                >
-                  <span class="material-symbols-outlined">edit</span>
-                </button>
-                <button
-                  @click="deleteUser(user.id, user.name)"
-                  class="action-btn delete-btn"
-                  title="Delete User"
-                >
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          <div class="uc-actions">
+            <button class="uc-btn-edit" @click="openEdit(user)">
+              <span class="material-symbols-outlined">edit</span>
+              Edit Profile
+            </button>
+            <button
+              class="uc-btn-del"
+              @click="deleteUser(user.id, user.name)"
+              :disabled="deletingId === user.id"
+            >
+              <span class="material-symbols-outlined">
+                {{ deletingId === user.id ? 'hourglass_empty' : 'delete' }}
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- ══════ MODAL ══════ -->
+    <transition name="modal-fade">
+      <div v-if="showModal" class="modal-backdrop" @click.self="onClose">
+        <div class="modal-box">
+          <UserForm
+            :userObject="editTarget"
+            @saved="onSaved"
+            @close="onClose"
+          />
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
 <style scoped>
-.user-page {
-  animation: fadeIn 0.4s ease;
+/* ════════════════════════════════
+   PAGE
+════════════════════════════════ */
+.ul-page {
+  animation: pageIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes pageIn {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ════════════════════════════════
+   HEADER
+════════════════════════════════ */
+.ul-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
 }
-
-/* ─── Page Header ─── */
-.page-header {
-  margin-bottom: 1.5rem;
+.ul-header-left { display: flex; align-items: center; gap: 1rem; }
+.ul-icon-wrap {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: linear-gradient(135deg, #5D4037, #795548);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(93,64,55,0.25);
 }
+.ul-icon-wrap .material-symbols-outlined { color: #fff; font-size: 24px; }
 
-.page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 0.3rem;
+.ul-title { font-size: 1.6rem; font-weight: 800; color: #3E2723; margin: 0; letter-spacing: -0.03em; }
+.ul-subtitle { font-size: 0.82rem; color: #A1887F; margin: 0; }
+
+.btn-add {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.65rem 1.35rem;
+  background: linear-gradient(135deg, #5D4037, #795548);
+  color: #fff; border: none; border-radius: 12px;
+  font-size: 0.88rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(93,64,55,0.25);
+  transition: all 0.2s ease; font-family: inherit;
 }
+.btn-add:hover { transform:translateY(-2px); box-shadow: 0 8px 24px rgba(93,64,55,0.3); }
 
-.page-icon {
-  font-size: 28px;
-  color: #818cf8;
+/* ════════════════════════════════
+   STATS
+════════════════════════════════ */
+.ul-stats {
+  display: flex; align-items: center; gap: 0;
+  background: #fff; border: 1px solid #EDE8E4;
+  border-radius: 14px; padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem; box-shadow: 0 2px 12px rgba(93,64,55,0.05);
 }
+.stat-chip { flex: 1; display: flex; align-items: center; gap: 0.5rem; justify-content: center; }
+.stat-ico { font-size: 20px; color: #8D6E63; }
+.ico-red   { color: #ef4444 !important; }
+.ico-blue  { color: #3b82f6 !important; }
+.ico-green { color: #10b981 !important; }
+.stat-val { font-size: 1.3rem; font-weight: 800; color: #3E2723; }
+.stat-lbl { font-size: 0.78rem; color: #A1887F; font-weight: 500; }
+.stat-divider { width: 1px; height: 32px; background: #EDE8E4; margin: 0 0.5rem; }
 
-.page-sub {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-/* ─── Toolbar ─── */
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.toolbar-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.8rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  flex: 1;
-  max-width: 320px;
-  transition: border-color 0.2s;
-}
-
-.search-box:focus-within {
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
-.search-icon {
-  font-size: 20px;
-  color: #64748b;
-  flex-shrink: 0;
-}
-
+/* ════════════════════════════════
+   TOOLBAR
+════════════════════════════════ */
+.ul-toolbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.search-wrap { position: relative; flex: 1; min-width: 250px; }
+.search-ico { position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%); font-size: 19px; color: #A1887F; pointer-events: none; }
 .search-input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #e2e8f0;
-  font-size: 0.88rem;
-  width: 100%;
+  width: 100%; padding: 0.7rem 2.5rem; background: #fff;
+  border: 1.5px solid #D7CCC8; border-radius: 12px;
+  font-size: 0.88rem; color: #3E2723; outline: none; transition: all 0.2s;
+}
+.search-input:focus { border-color: #A1887F; box-shadow: 0 0 0 3px rgba(161, 136, 127, 0.1); }
+
+.filter-wrap { position: relative; width: 220px; }
+.role-select {
+  width: 100%; padding: 0.7rem 1.25rem; background: #fff;
+  border: 1.5px solid #D7CCC8; border-radius: 12px;
+  font-size: 0.88rem; color: #3E2723; outline: none;
+  appearance: none; cursor: pointer; transition: all 0.2s;
+}
+.role-select:focus { border-color: #A1887F; }
+.select-arrow { position: absolute; right: 0.8rem; top: 50%; transform: translateY(-50%); color: #A1887F; pointer-events: none; }
+
+/* ════════════════════════════════
+   ERROR / EMPTY
+════════════════════════════════ */
+.ul-error { display: flex; align-items: center; gap: 0.6rem; padding: 1rem; background: #FFF5F5; border: 1px solid #fca5a5; border-radius: 12px; color: #dc2626; }
+.ul-empty { display: flex; flex-direction: column; align-items: center; padding: 5rem 1rem; text-align: center; }
+.ul-empty-icon { font-size: 56px; color: #D7CCC8; margin-bottom: 1rem; }
+.ul-empty-title { font-size: 1.1rem; font-weight: 700; color: #5D4037; margin: 0 0 0.35rem; }
+.ul-empty-sub   { font-size: 0.85rem; color: #A1887F; margin: 0; }
+
+/* ════════════════════════════════
+   GRID
+════════════════════════════════ */
+.ul-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1.25rem;
+}
+.user-card {
+  background: #fff; border: 1.5px solid #E0D7D0; border-radius: 18px;
+  overflow: hidden; box-shadow: 0 2px 12px rgba(93,64,55,0.06);
+  transition: all 0.25s ease; animation: cardIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes cardIn {
+  from { opacity:0; transform:translateY(12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.user-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(93,64,55,0.15); border-color: #A1887F; }
+
+.uc-body { padding: 1.5rem; }
+.uc-top { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.uc-avatar {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: linear-gradient(135deg, #5D4037, #8D6E63);
+  color: #fff; font-size: 0.9rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.uc-info { flex: 1; min-width: 0; }
+.uc-name { font-size: 1.05rem; font-weight: 800; color: #3E2723; margin: 0 0 0.15rem; }
+.uc-email { font-size: 0.8rem; color: #A1887F; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.uc-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.uc-role-tag {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.25rem 0.65rem; border-radius: 8px; font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.uc-role-tag.super_admin { background: #fee2e2; color: #991b1b; }
+.uc-role-tag.branch_manager { background: #dbeafe; color: #1e40af; }
+.uc-role-tag.sales_user { background: #dcfce7; color: #166534; }
+.uc-role-tag .material-symbols-outlined { font-size: 14px; }
+
+.uc-date { font-size: 0.72rem; color: #BCAAA4; font-weight: 500; }
+
+.uc-actions { display: flex; gap: 0.5rem; }
+.uc-btn-edit {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.55rem; background: rgba(93,64,55,0.06); color: #5D4037;
+  border: none; border-radius: 10px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.uc-btn-edit:hover { background: rgba(93,64,55,0.12); }
+.uc-btn-edit .material-symbols-outlined { font-size: 16px; }
+
+.uc-btn-del {
+  padding: 0.55rem; background: rgba(239,68,68,0.06); color: #dc2626;
+  border: none; border-radius: 10px; cursor: pointer; transition: all 0.2s;
+}
+.uc-btn-del:hover:not(:disabled) { background: rgba(239,68,68,0.12); }
+
+/* ════════════════════════════════
+   MODAL
+════════════════════════════════ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(30,15,10,0.45);
+  backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.modal-box {
+  width: 100%; max-width: 500px; border-radius: 22px; overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.3); animation: modalIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes modalIn {
+  from { opacity:0; transform:scale(0.93) translateY(20px); }
+  to   { opacity:1; transform:scale(1)    translateY(0); }
 }
 
-.search-input::placeholder {
-  color: #475569;
-}
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s ease; }
+.modal-fade-enter-from,  .modal-fade-leave-to     { opacity: 0; }
 
-.filter-select {
-  padding: 0.5rem 0.8rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: #e2e8f0;
-  font-size: 0.88rem;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  min-width: 160px;
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
-.filter-select option {
-  background: #1e1e2e;
-  color: #e2e8f0;
-}
-
-.btn-create {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 1.1rem;
-  background: #646cff;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
-  white-space: nowrap;
-}
-
-.btn-create:hover {
-  background: #535bf2;
-  transform: translateY(-1px);
-}
-
-.btn-create .material-symbols-outlined {
-  font-size: 18px;
-}
-
-/* ─── Error Banner ─── */
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 8px;
-  color: #f87171;
-  font-size: 0.88rem;
-  font-weight: 500;
-  margin-bottom: 1.25rem;
-}
-
-.error-banner .material-symbols-outlined {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.retry-btn {
-  margin-left: auto;
-  padding: 0.3rem 0.8rem;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px;
-  color: #f87171;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.retry-btn:hover {
-  background: rgba(239, 68, 68, 0.25);
-}
-
-/* ─── Loading / Empty state ─── */
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  padding: 3rem 1rem;
-  color: #64748b;
-  font-size: 0.9rem;
-}
-
-.empty-icon {
-  font-size: 40px;
-  color: #334155;
-}
-
-.empty-hint {
-  font-size: 0.82rem;
-  color: #475569;
-  margin: 0;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  font-size: 22px;
-}
-
-/* ─── Table Section ─── */
-.table-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 0.25rem;
-}
-
-.table-wrapper {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 0.65rem 1rem;
-  text-align: left;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-td {
-  padding: 0.75rem 1rem;
-  font-size: 0.88rem;
-  color: #cbd5e1;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-/* ─── User Cell with Avatar ─── */
-.user-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.user-avatar-small {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #a78bfa);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 0.65rem;
-  font-weight: 700;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
-}
-
-.user-name {
-  font-weight: 500;
-  color: #e2e8f0;
-}
-
-.email-cell {
-  color: #94a3b8;
-  font-size: 0.85rem;
-}
-
-.date-cell {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-/* ─── Role Badges ─── */
-.role-badge {
-  display: inline-block;
-  padding: 0.2rem 0.65rem;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.role-admin {
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.role-manager {
-  background: rgba(59, 130, 246, 0.1);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.role-sales {
-  background: rgba(34, 197, 94, 0.1);
-  color: #86efac;
-  border: 1px solid rgba(34, 197, 94, 0.2);
-}
-
-/* ─── Action Buttons ─── */
-.actions-cell {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.action-btn .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.edit-btn {
-  color: #60a5fa;
-}
-
-.edit-btn:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.delete-btn {
-  color: #f87171;
-}
-
-.delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-/* ─── Responsive ─── */
 @media (max-width: 640px) {
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .toolbar-filters {
-    flex-direction: column;
-  }
-
-  .search-box {
-    max-width: 100%;
-  }
-
-  .page-header h1 {
-    font-size: 1.3rem;
-  }
+  .ul-stats { flex-wrap: wrap; gap: 0.75rem; }
+  .stat-divider { display: none; }
+  .filter-wrap { width: 100%; }
 }
 </style>

@@ -1,18 +1,24 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
 import api from '@/services/api'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
+const router = useRouter()
 
-const branchId = ref('')
-const productId = ref('')
-const quantity = ref(0)
-const loading = ref(false)
+const branchId   = ref('')
+const productId  = ref('')
+const quantity   = ref(0)
+const loading    = ref(false)
+const fetching   = ref(true)
+const error      = ref('')
 
 const branches = ref([])
 const products = ref([])
 
 const fetchOptions = async () => {
+  fetching.value = true
   try {
     const [branchRes, productRes] = await Promise.all([
       api.get('/my-branches'),
@@ -20,14 +26,15 @@ const fetchOptions = async () => {
     ])
     branches.value = branchRes.data
     products.value = productRes.data.data || productRes.data
-  } catch (error) {
-    console.error('Failed to load options:', error)
+  } catch (err) {
+    error.value = 'Failed to load options. Please refresh.'
+  } finally {
+    fetching.value = false
   }
 }
 
 const adjustStock = async () => {
   if (!branchId.value || !productId.value) {
-    alert('Please select both a branch and a product.')
     return
   }
   loading.value = true
@@ -37,167 +44,216 @@ const adjustStock = async () => {
       product_id: productId.value,
       quantity: quantity.value
     })
-    alert('Stock adjusted successfully!')
-    branchId.value = ''
-    productId.value = ''
-    quantity.value = 0
-  } catch (error) {
-    console.error('Failed to adjust stock:', error)
-    const msg = error.response?.data?.message || 'Failed to adjust stock. Please try again.'
+    router.push('/inventory')
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Failed to adjust stock.'
     alert(msg)
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 onMounted(fetchOptions)
 </script>
 
 <template>
-  <div class="inventory-form">
-    <router-link to="/inventory" class="back-link">
-      <span class="material-symbols-outlined">arrow_back</span>
-      Back to Inventory
-    </router-link>
-    <h2>Adjust Stock</h2>
-    <p class="form-subtitle">Select a branch and product, then enter the quantity adjustment (use negative values to reduce).</p>
+  <div class="ad-page">
+    
+    <LoadingScreen v-if="fetching" :show="fetching" message="Configuring inventory…" />
 
-    <form @submit.prevent="adjustStock">
-      <div class="form-group">
-        <label for="branch-select">Branch</label>
-        <select id="branch-select" v-model="branchId" required>
-          <option value="" disabled>-- Select Branch --</option>
-          <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-            {{ branch.name }}
-          </option>
-        </select>
+    <!-- Header -->
+    <div class="ad-header">
+      <router-link to="/inventory" class="ad-back">
+        <span class="material-symbols-outlined">arrow_back</span>
+        Back to Inventory
+      </router-link>
+      <div class="ad-title-row">
+        <div class="ad-icon">
+          <span class="material-symbols-outlined">tune</span>
+        </div>
+        <div>
+          <h1 class="ad-title">Adjust Stock</h1>
+          <p class="ad-subtitle">Modify inventory levels manually for corrections or shrinkage</p>
+        </div>
       </div>
+    </div>
 
-      <div class="form-group">
-        <label for="product-select">Product</label>
-        <select id="product-select" v-model="productId" required>
-          <option value="" disabled>-- Select Product --</option>
-          <option
-            v-for="product in products"
-            :key="product.id"
-            :value="product.id"
-            :disabled="product.status === 'inactive'"
-          >
-            {{ product.name }} (SKU: {{ product.sku }}){{ product.status === 'inactive' ? ' [Inactive]' : '' }}
-          </option>
-        </select>
-      </div>
+    <!-- Container -->
+    <div class="ad-container">
+      <form class="ad-form" @submit.prevent="adjustStock">
+        
+        <div v-if="error" class="ad-error">
+          <span class="material-symbols-outlined">error</span>
+          {{ error }}
+        </div>
 
-      <div class="form-group">
-        <label for="quantity-input">Quantity Adjustment</label>
-        <input
-          id="quantity-input"
-          type="number"
-          v-model.number="quantity"
-          placeholder="e.g. +10 or -5"
-          required
-        />
-        <small class="field-hint">Use positive values to add, negative to subtract.</small>
-      </div>
+        <!-- Branch -->
+        <div class="ad-field">
+          <label class="ad-label">
+            <span class="material-symbols-outlined">store_mall_directory</span>
+            Target Branch
+          </label>
+          <div class="ad-select-wrap">
+            <select v-model="branchId" class="ad-input ad-select" required>
+              <option value="" disabled>— Select active branch —</option>
+              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+            </select>
+            <span class="material-symbols-outlined ad-arrow">expand_more</span>
+          </div>
+        </div>
 
-      <button type="submit" :disabled="loading" class="btn-submit">
-        {{ loading ? 'Adjusting...' : 'Adjust Stock' }}
-      </button>
-    </form>
+        <!-- Product -->
+        <div class="ad-field">
+          <label class="ad-label">
+            <span class="material-symbols-outlined">inventory_2</span>
+            Select Product
+          </label>
+          <div class="ad-select-wrap">
+            <select v-model="productId" class="ad-input ad-select" required>
+              <option value="" disabled>— Select product —</option>
+              <option 
+                v-for="p in products" 
+                :key="p.id" 
+                :value="p.id"
+                :disabled="p.status === 'inactive'"
+              >
+                {{ p.name }} {{ p.sku ? `(${p.sku})` : '' }}
+              </option>
+            </select>
+            <span class="material-symbols-outlined ad-arrow">expand_more</span>
+          </div>
+        </div>
+
+        <!-- Adjustment Qty -->
+        <div class="ad-field">
+          <label class="ad-label">
+            <span class="material-symbols-outlined">swap_vert</span>
+            Quantity Adjustment
+          </label>
+          <input 
+            type="number" 
+            v-model.number="quantity" 
+            class="ad-input" 
+            placeholder="e.g. +10 or -5"
+            required
+          />
+          <p class="ad-hint">
+            <span class="material-symbols-outlined">info</span>
+            Use <b>positive</b> values to add, <b>negative</b> values to subtract.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="ad-actions">
+          <button type="button" class="ad-btn-cancel" @click="router.push('/inventory')">Cancel</button>
+          <button type="submit" class="ad-btn-save" :disabled="loading || !branchId || !productId">
+            <span v-if="loading" class="ad-spinner"></span>
+            <span v-else class="material-symbols-outlined">auto_fix_high</span>
+            {{ loading ? 'Updating…' : 'Apply Adjustment' }}
+          </button>
+        </div>
+      </form>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
-.inventory-form {
-  max-width: 500px;
+.ad-page {
+  animation: pageIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #818cf8;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 1rem;
-  transition: color 0.2s;
+/* Header */
+.ad-header { margin-bottom: 2rem; }
+.ad-back {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: #A1887F; text-decoration: none; font-size: 0.85rem; font-weight: 600;
+  margin-bottom: 1.25rem; transition: color 0.2s;
+}
+.ad-back:hover { color: #5D4037; }
+.ad-back .material-symbols-outlined { font-size: 18px; }
+
+.ad-title-row { display: flex; align-items: center; gap: 1rem; }
+.ad-icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: #3E2723;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(62,39,35,0.22);
+}
+.ad-icon .material-symbols-outlined { color: #fff; font-size: 26px; }
+
+.ad-title { font-size: 1.6rem; font-weight: 800; color: #3E2723; margin: 0; letter-spacing: -0.03em; }
+.ad-subtitle { font-size: 0.85rem; color: #A1887F; margin: 0; }
+
+/* Container */
+.ad-container {
+  max-width: 540px; background: #fff;
+  border: 1.5px solid #E0D7D0; border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(93,64,55,0.06);
+  overflow: hidden;
 }
 
-.back-link:hover {
-  color: #a5b4fc;
+.ad-form { padding: 2rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+.ad-error {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem; background: #FFF5F5; border: 1px solid #fca5a5;
+  border-radius: 10px; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.5rem;
 }
 
-.back-link .material-symbols-outlined {
-  font-size: 18px;
+.ad-field { display: flex; flex-direction: column; gap: 0.45rem; }
+.ad-label {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-size: 0.85rem; font-weight: 700; color: #5D4037;
 }
+.ad-label .material-symbols-outlined { font-size: 16px; color: #A1887F; }
 
-.inventory-form h2 {
-  margin-bottom: 0.25rem;
-}
-
-.form-subtitle {
-  color: #888;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1.2rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.form-group select,
-.form-group input {
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #444;
-  border-radius: 6px;
-  background: #1a1a2e;
-  color: #eee;
-  font-size: 0.95rem;
+.ad-input {
+  width: 100%; padding: 0.75rem 1rem; background: #FAF8F6;
+  border: 1.5px solid #EDE8E4; border-radius: 11px;
+  font-size: 0.92rem; color: #3E2723; font-family: inherit;
+  outline: none; transition: border-color 0.2s, background 0.2s;
   box-sizing: border-box;
 }
+.ad-input:focus { border-color: #A1887F; background: #fff; }
 
-.form-group select:focus,
-.form-group input:focus {
-  outline: none;
-  border-color: #646cff;
-  box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+.ad-hint { display: flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; color: #A1887F; margin: 0; }
+.ad-hint .material-symbols-outlined { font-size: 14px; }
+
+.ad-select-wrap { position: relative; }
+.ad-select { appearance: none; padding-right: 2.5rem; cursor: pointer; }
+.ad-arrow {
+  position: absolute; right: 0.85rem; top: 50%; transform: translateY(-50%);
+  color: #BCAAA4; pointer-events: none; font-size: 20px;
 }
 
-.field-hint {
-  display: block;
-  margin-top: 0.3rem;
-  color: #777;
-  font-size: 0.8rem;
+.ad-actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+.ad-btn-cancel {
+  flex: 1; padding: 0.75rem; background: #FAF8F6; border: 1.5px solid #EDE8E4;
+  border-radius: 12px; font-size: 0.9rem; font-weight: 600; color: #795548;
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
 }
+.ad-btn-cancel:hover { background: #fff; border-color: #D7CCC8; }
 
-.btn-submit {
-  width: 100%;
-  padding: 0.7rem;
-  background: #646cff;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin-top: 0.5rem;
+.ad-btn-save {
+  flex: 1.6; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #5D4037, #795548);
+  color: #fff; border: none; border-radius: 12px;
+  font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(93,64,55,0.25);
+  transition: all 0.2s; font-family: inherit;
 }
+.ad-btn-save:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(93,64,55,0.3); }
+.ad-btn-save:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-.btn-submit:hover:not(:disabled) {
-  background: #535bf2;
+.ad-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
 }
-
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

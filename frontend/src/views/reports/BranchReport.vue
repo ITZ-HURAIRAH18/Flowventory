@@ -3,17 +3,21 @@ import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import Chart from 'chart.js/auto'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
 const route = useRoute()
 const router = useRouter()
 const branchId = route.params.branchId || route.params.id
+
 const report = ref({
   today_sales: 0,
   monthly_sales: 0,
   total_orders: 0,
   top_products: [],
-  low_stock: []
+  low_stock: [],
+  branch: null
 })
+
 const loading = ref(true)
 const error = ref(null)
 const salesChart = ref(null)
@@ -23,10 +27,7 @@ onMounted(async () => {
     const res = await api.get(`/branches/${branchId}/report`)
     report.value = res.data
 
-    // First set loading to false so the canvas element appears in the DOM
     loading.value = false
-
-    // Wait for Vue to update the DOM, then render the chart
     await nextTick()
     renderChart()
   } catch (err) {
@@ -39,23 +40,28 @@ onMounted(async () => {
 function renderChart() {
   if (!salesChart.value) return
 
+  const ctx = salesChart.value.getContext('2d')
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400)
+  gradient.addColorStop(0, 'rgba(62, 39, 35, 0.95)')
+  gradient.addColorStop(1, 'rgba(62, 39, 35, 0.3)')
+
   new Chart(salesChart.value, {
     type: 'bar',
     data: {
-      labels: ['Today Sales', 'Monthly Sales'],
+      labels: ['Daily Revenue', 'Monthly Revenue'],
       datasets: [
         {
-          label: 'Sales ($)',
+          label: 'Revenue ($)',
           data: [
             report.value.today_sales,
             report.value.monthly_sales
           ],
-          backgroundColor: ['rgba(255, 255, 255, 0.85)', 'rgba(255, 255, 255, 0.45)'],
-          borderColor: ['#ffffff', '#999999'],
-          borderWidth: 1,
-          borderRadius: 6,
-          barPercentage: 0.5,
-          categoryPercentage: 0.6
+          backgroundColor: gradient,
+          borderColor: '#3E2723',
+          borderWidth: 2,
+          borderRadius: 14,
+          barPercentage: 0.45,
+          categoryPercentage: 0.5
         }
       ]
     },
@@ -63,39 +69,32 @@ function renderChart() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: false
-        },
+        legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a1a',
-          titleColor: '#ffffff',
-          bodyColor: '#cccccc',
-          borderColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 1,
-          padding: 12,
-          cornerRadius: 8,
+          backgroundColor: '#3E2723',
+          titleColor: '#fff',
+          bodyColor: '#D7CCC8',
+          padding: 14,
+          cornerRadius: 12,
+          displayColors: false,
           callbacks: {
-            label: function(context) {
-              return `$${Number(context.raw).toLocaleString()}`
-            }
+            label: (ctx) => `Revenue: $${Number(ctx.raw).toLocaleString()}`
           }
         }
       },
       scales: {
         x: {
-          ticks: { color: '#888888', font: { size: 13, weight: '500' } },
+          ticks: { color: '#8D6E63', font: { family: 'Outfit', size: 13, weight: '600' } },
           grid: { display: false },
           border: { display: false }
         },
         y: {
           ticks: {
-            color: '#666666',
-            font: { size: 12 },
-            callback: function(value) {
-              return '$' + value.toLocaleString()
-            }
+            color: '#A1887F',
+            font: { family: 'Outfit', size: 12 },
+            callback: (val) => '$' + val.toLocaleString()
           },
-          grid: { color: 'rgba(255,255,255,0.04)' },
+          grid: { color: 'rgba(215, 204, 200, 0.25)', drawTicks: false },
           border: { display: false }
         }
       }
@@ -109,484 +108,236 @@ function goBack() {
 </script>
 
 <template>
-  <div class="report-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <button class="back-btn" @click="goBack">
+  <div class="br-page">
+    
+    <!-- ══════ HEADER ══════ -->
+    <div class="br-header">
+      <button class="br-back-btn" @click="goBack">
         <span class="material-symbols-outlined">arrow_back</span>
       </button>
-      <div>
-        <h1>
-          <span class="material-symbols-outlined page-icon">analytics</span>
-          Branch Report
-        </h1>
-        <p class="page-sub">Sales performance, top products, and stock overview</p>
+      <div class="br-title-row">
+        <div class="br-icon-box">
+          <span class="material-symbols-outlined">storefront</span>
+        </div>
+        <div>
+          <h1 class="br-title">Branch Performance</h1>
+          <p class="br-subtitle">Granular report for <b>{{ report.branch?.name || 'Local Store' }}</b></p>
+        </div>
       </div>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <span class="material-symbols-outlined spin">progress_activity</span>
-      Loading report data...
-    </div>
+    <!-- ══════ LOADING ══════ -->
+    <LoadingScreen v-if="loading" :show="loading" message="Extracting store data…" />
 
-    <!-- Error -->
-    <div v-else-if="error" class="error-state">
-      <span class="material-symbols-outlined error-icon">error</span>
+    <!-- ══════ ERROR ══════ -->
+    <div v-else-if="error" class="br-error-state">
+      <span class="material-symbols-outlined br-err-ico">cloud_off</span>
+      <h3>Data Retrieval Failed</h3>
       <p>{{ error }}</p>
-      <button class="retry-btn" @click="$router.go(0)">
+      <button @click="$router.go(0)" class="br-retry-btn">
         <span class="material-symbols-outlined">refresh</span>
-        Retry
+        Retry Sync
       </button>
     </div>
 
-    <!-- Report Content -->
-    <div v-else class="report-content">
+    <!-- ══════ CONTENT ══════ -->
+    <div v-else class="br-content">
+      
       <!-- Summary Cards -->
-      <div class="summary-grid">
-        <div class="summary-card" style="--delay: 0.05s">
-          <div class="card-icon-wrap">
-            <span class="material-symbols-outlined">point_of_sale</span>
-          </div>
-          <div class="card-info">
-            <span class="card-label">Today Sales</span>
-            <span class="card-value">${{ Number(report.today_sales).toLocaleString() }}</span>
+      <div class="br-summary-grid">
+        <div class="br-card br-stat-card" style="--delay: 0.1s">
+          <div class="br-ico-wrap ico-brown"><span class="material-symbols-outlined">savings</span></div>
+          <div class="br-info">
+            <span class="br-label">Today Sales</span>
+            <span class="br-value">${{ Number(report.today_sales).toLocaleString() }}</span>
           </div>
         </div>
-
-        <div class="summary-card" style="--delay: 0.1s">
-          <div class="card-icon-wrap">
-            <span class="material-symbols-outlined">calendar_month</span>
-          </div>
-          <div class="card-info">
-            <span class="card-label">Monthly Sales</span>
-            <span class="card-value">${{ Number(report.monthly_sales).toLocaleString() }}</span>
+        <div class="br-card br-stat-card" style="--delay: 0.2s">
+          <div class="br-ico-wrap ico-tan"><span class="material-symbols-outlined">account_balance</span></div>
+          <div class="br-info">
+            <span class="br-label">Monthly Sales</span>
+            <span class="br-value">${{ Number(report.monthly_sales).toLocaleString() }}</span>
           </div>
         </div>
-
-        <div class="summary-card" style="--delay: 0.15s">
-          <div class="card-icon-wrap">
-            <span class="material-symbols-outlined">receipt_long</span>
-          </div>
-          <div class="card-info">
-            <span class="card-label">Total Orders</span>
-            <span class="card-value">{{ report.total_orders }}</span>
+        <div class="br-card br-stat-card" style="--delay: 0.3s">
+          <div class="br-ico-wrap ico-warm"><span class="material-symbols-outlined">assignment_turned_in</span></div>
+          <div class="br-info">
+            <span class="br-label">Orders Completed</span>
+            <span class="br-value">{{ report.total_orders.toLocaleString() }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Chart Section -->
-      <div class="section-card chart-section" style="--delay: 0.2s">
-        <h3 class="section-title">
-          <span class="material-symbols-outlined">bar_chart</span>
-          Sales Overview
-        </h3>
-        <div class="chart-container">
-          <canvas ref="salesChart"></canvas>
+      <div class="br-main-grid">
+        <!-- Chart -->
+        <div class="br-card br-viz-card" style="--delay: 0.4s">
+          <div class="br-card-head">
+            <span class="material-symbols-outlined">insights</span>
+            <h3>Revenue Breakdown</h3>
+          </div>
+          <div class="br-chart-wrap">
+            <canvas ref="salesChart"></canvas>
+          </div>
         </div>
-      </div>
 
-      <!-- Two-Column Bottom -->
-      <div class="bottom-grid">
-        <!-- Top Products -->
-        <div class="section-card" style="--delay: 0.25s">
-          <h3 class="section-title">
-            <span class="material-symbols-outlined">trending_up</span>
-            Top 5 Products
-          </h3>
-          <div v-if="report.top_products && report.top_products.length" class="product-list">
-            <div
-              v-for="(product, index) in report.top_products"
-              :key="product.name"
-              class="product-row"
-            >
-              <div class="product-rank">{{ index + 1 }}</div>
-              <span class="product-name">{{ product.name }}</span>
-              <span class="product-sold">{{ product.total_sold }} sold</span>
+        <div class="br-side-col">
+          <!-- Top Products -->
+          <div class="br-card br-list-card" style="--delay: 0.5s">
+            <div class="br-card-head">
+              <span class="material-symbols-outlined">grade</span>
+              <h3>Top Selling Units</h3>
+            </div>
+            <div v-if="report.top_products?.length" class="br-list">
+              <div v-for="(p, i) in report.top_products" :key="p.name" class="br-list-item">
+                <div class="br-rank">{{ i + 1 }}</div>
+                <div class="br-item-name">{{ p.name }}</div>
+                <div class="br-item-count">{{ p.total_sold }} <small>sold</small></div>
+              </div>
+            </div>
+            <div v-else class="br-empty-state">
+              <p>No products sold yet</p>
             </div>
           </div>
-          <div v-else class="empty-section">
-            <span class="material-symbols-outlined">inventory_2</span>
-            <p>No product data yet</p>
-          </div>
-        </div>
 
-        <!-- Low Stock -->
-        <div class="section-card" style="--delay: 0.3s">
-          <h3 class="section-title warning-title">
-            <span class="material-symbols-outlined">warning</span>
-            Low Stock Items
-          </h3>
-          <div v-if="report.low_stock && report.low_stock.length" class="stock-list">
-            <div
-              v-for="item in report.low_stock"
-              :key="item.id"
-              class="stock-row"
-            >
-              <span class="stock-name">{{ item.product?.name || 'Unknown' }}</span>
-              <span class="stock-qty" :class="{ 'critical': item.quantity <= 3 }">
-                {{ item.quantity }} left
-              </span>
+          <!-- Low Stock -->
+          <div class="br-card br-list-card" style="--delay: 0.6s">
+            <div class="br-card-head warning">
+              <span class="material-symbols-outlined">fmcg</span>
+              <h3>Restock Alerts</h3>
             </div>
-          </div>
-          <div v-else class="empty-section">
-            <span class="material-symbols-outlined">check_circle</span>
-            <p>All items stocked</p>
+            <div v-if="report.low_stock?.length" class="br-list">
+              <div v-for="item in report.low_stock" :key="item.id" class="br-list-item">
+                <div class="br-item-name">{{ item.product?.name }}</div>
+                <div class="br-item-qty" :class="{ 'critical': item.quantity <= 3 }">
+                  {{ item.quantity }} left
+                </div>
+              </div>
+            </div>
+            <div v-else class="br-empty-state green">
+              <span class="material-symbols-outlined">check_circle</span>
+              <p>Stock levels optimal</p>
+            </div>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-.report-page {
-  animation: fadeIn 0.4s ease;
+.br-page {
+  animation: pageIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  background: #FCFAF9; min-height: 100vh; padding: 1.5rem;
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideUp {
+@keyframes pageIn {
   from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Header ── */
-.page-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
+/* Header */
+.br-header { display: flex; align-items: center; gap: 1.25rem; margin-bottom: 2.5rem; }
+.br-back-btn {
+  width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid #E0D7D0;
+  background: #fff; color: #8D6E63; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+}
+.br-back-btn:hover { background: #FAF9F7; border-color: #8D6E63; color: #3E2723; }
+
+.br-title-row { display: flex; align-items: center; gap: 1rem; }
+.br-icon-box {
+  width: 52px; height: 52px; border-radius: 16px; background: #3E2723;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(62,39,35,0.22);
+}
+.br-icon-box .material-symbols-outlined { color: #fff; font-size: 26px; }
+.br-title { font-size: 1.7rem; font-weight: 850; color: #3E2723; margin: 0; letter-spacing: -0.04em; }
+.br-subtitle { font-size: 0.92rem; color: #8D6E63; margin: 0.15rem 0 0; font-weight: 500; }
+.br-subtitle b { color: #5D4037; font-weight: 800; }
+
+/* Grid & Cards */
+.br-content { display: flex; flex-direction: column; gap: 1.25rem; }
+.br-card {
+  background: #fff; border: 1.5px solid #E0D7D0; border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(93,64,55,0.04);
+  animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1) both; animation-delay: var(--delay);
+}
+@keyframes cardIn {
+  from { opacity:0; transform: translateY(15px); }
+  to   { opacity:1; transform: translateY(0); }
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: #94a3b8;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
+.br-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+.br-stat-card { padding: 1.25rem 1.75rem; display: flex; align-items: center; gap: 1.25rem; }
+
+.br-ico-wrap {
+  width: 50px; height: 50px; border-radius: 15px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.br-ico-wrap .material-symbols-outlined { font-size: 26px; }
+.ico-brown { background: rgba(62,39,35,0.08); color: #3E2723; }
+.ico-tan   { background: rgba(141,110,99,0.08); color: #8D6E63; }
+.ico-warm  { background: rgba(161,136,127,0.08); color: #A1887F; }
+
+.br-label { display: block; font-size: 0.75rem; font-weight: 750; color: #A1887F; text-transform: uppercase; letter-spacing: 0.05em; }
+.br-value { display: block; font-size: 1.6rem; font-weight: 850; color: #3E2723; letter-spacing: -0.02em; }
+
+/* Main Section */
+.br-main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.25rem; }
+.br-side-col { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.br-viz-card { padding: 1.75rem 2rem; }
+.br-list-card { padding: 1.5rem; }
+
+.br-card-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+.br-card-head .material-symbols-outlined { color: #8D6E63; font-size: 22px; }
+.br-card-head h3 { font-size: 1.1rem; font-weight: 850; color: #3E2723; margin: 0; }
+.br-card-head.warning .material-symbols-outlined { color: #E53935; }
+.br-card-head.warning h3 { color: #C62828; }
+
+.br-chart-wrap { height: 320px; position: relative; }
+
+/* Lists */
+.br-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.br-list-item {
+  display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1rem;
+  background: #FAF9F7; border-radius: 14px; border: 1px solid #F0EDE9;
+}
+.br-rank {
+  width: 26px; height: 26px; border-radius: 8px; background: #3E2723;
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 800;
+}
+.br-item-name { flex: 1; font-size: 0.92rem; font-weight: 700; color: #5D4037; }
+.br-item-count { font-size: 0.88rem; font-weight: 800; color: #8D6E63; }
+.br-item-count small { font-size: 0.7rem; color: #A1887F; }
+
+.br-item-qty { 
+  font-size: 0.85rem; font-weight: 800; color: #d97706; 
+  background: #FFFBEB; padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid #FEF3C7;
+}
+.br-item-qty.critical { color: #DC2626; background: #FEF2F2; border-color: #FEE2E2; }
+
+/* Empty / Error */
+.br-empty-state { padding: 3rem 1rem; text-align: center; color: #BCAAA4; }
+.br-empty-state.green { color: #166534; }
+.br-empty-state.green span { font-size: 32px; margin-bottom: 0.5rem; }
+
+.br-error-state { padding: 6rem 2rem; text-align: center; color: #A1887F; }
+.br-err-ico { font-size: 56px; color: #D7CCC8; margin-bottom: 1.25rem; }
+.br-error-state h3 { color: #3E2723; font-weight: 850; margin-bottom: 0.5rem; }
+.br-retry-btn {
+  margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: #3E2723; color: #fff;
+  border: none; border-radius: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;
 }
 
-.back-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.15);
+@media (max-width: 1024px) {
+  .br-main-grid { grid-template-columns: 1fr; }
+  .br-side-col { flex-direction: row; }
+  .br-side-col > div { flex: 1; }
 }
-
-.page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 0.3rem;
-}
-
-.page-icon {
-  font-size: 28px;
-  color: #ffffff;
-}
-
-.page-sub {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-/* ── Loading / Error ── */
-.loading-state,
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 6rem 1rem;
-  color: #64748b;
-  font-size: 0.95rem;
-}
-
-.error-icon {
-  font-size: 48px;
-  color: #ef4444;
-}
-
-.retry-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1.2rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s;
-}
-
-.retry-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  font-size: 24px;
-}
-
-/* ── Summary Cards ── */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.summary-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem 1.3rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  transition: all 0.25s ease;
-  animation: slideUp 0.5s ease both;
-  animation-delay: var(--delay);
-}
-
-.summary-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-}
-
-.card-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
-  flex-shrink: 0;
-}
-
-.card-icon-wrap .material-symbols-outlined {
-  font-size: 24px;
-}
-
-.card-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.card-label {
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.card-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #f8fafc;
-  line-height: 1.2;
-}
-
-/* ── Section Cards ── */
-.section-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 1.5rem;
-  animation: slideUp 0.5s ease both;
-  animation-delay: var(--delay);
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #e2e8f0;
-  margin: 0 0 1.2rem;
-}
-
-.section-title .material-symbols-outlined {
-  font-size: 20px;
-  color: #94a3b8;
-}
-
-.warning-title .material-symbols-outlined {
-  color: #f59e0b;
-}
-
-/* ── Chart ── */
-.chart-section {
-  margin-bottom: 0.75rem;
-}
-
-.chart-container {
-  position: relative;
-  height: 260px;
-}
-
-/* ── Bottom Grid ── */
-.bottom-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-/* ── Product List ── */
-.product-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.product-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  transition: background 0.15s;
-}
-
-.product-row:last-child {
-  border-bottom: none;
-}
-
-.product-row:hover {
-  background: rgba(255, 255, 255, 0.02);
-  margin: 0 -0.5rem;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
-  border-radius: 8px;
-}
-
-.product-rank {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
-  font-size: 0.8rem;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.product-name {
-  flex: 1;
-  font-size: 0.9rem;
-  color: #e2e8f0;
-  font-weight: 500;
-}
-
-.product-sold {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-}
-
-/* ── Stock List ── */
-.stock-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.stock-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.stock-row:last-child {
-  border-bottom: none;
-}
-
-.stock-name {
-  font-size: 0.9rem;
-  color: #e2e8f0;
-  font-weight: 500;
-}
-
-.stock-qty {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.08);
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-}
-
-.stock-qty.critical {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
-}
-
-/* ── Empty Section ── */
-.empty-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2rem 1rem;
-  color: #475569;
-  font-size: 0.85rem;
-}
-
-.empty-section .material-symbols-outlined {
-  font-size: 32px;
-  color: #334155;
-}
-
-/* ── Responsive ── */
-@media (max-width: 900px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .page-header h1 {
-    font-size: 1.3rem;
-  }
-  .card-value {
-    font-size: 1.2rem;
-  }
+@media (max-width: 768px) {
+  .br-summary-grid { grid-template-columns: 1fr; }
+  .br-side-col { flex-direction: column; }
 }
 </style>

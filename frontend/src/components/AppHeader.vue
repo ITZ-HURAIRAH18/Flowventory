@@ -241,17 +241,17 @@ const closeUserMenu = () => {
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: rgba(15, 17, 23, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(250, 248, 246, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid #EDE8E4;
   transition: all 0.3s ease;
 }
 
 .header-scrolled {
-  background: rgba(10, 12, 18, 0.95);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
-  border-bottom-color: rgba(99, 102, 241, 0.15);
+  background: rgba(250, 248, 246, 0.98);
+  box-shadow: 0 4px 24px rgba(93, 64, 55, 0.1);
+  border-bottom-color: #D7CCC8;
 }
 
 .header-inner {
@@ -272,7 +272,6 @@ const closeUserMenu = () => {
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
-  color: #fff;
   font-weight: 700;
   font-size: 1.25rem;
   letter-spacing: -0.02em;
@@ -285,8 +284,8 @@ const closeUserMenu = () => {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+  background: linear-gradient(135deg, #5D4037, #795548);
+  box-shadow: 0 2px 12px rgba(93, 64, 55, 0.28);
 }
 
 .brand-icon .material-symbols-outlined {
@@ -295,11 +294,11 @@ const closeUserMenu = () => {
 }
 
 .brand-text {
-  color: #e2e8f0;
+  color: #3E2723;
 }
 
 .brand-accent {
-  color: #818cf8;
+  color: #8D6E63;
 }
 
 /* ═══════════════════════════════════════════
@@ -318,7 +317,7 @@ const closeUserMenu = () => {
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
   text-decoration: none;
-  color: #94a3b8;
+  color: #795548;
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -326,13 +325,14 @@ const closeUserMenu = () => {
 }
 
 .nav-link:hover {
-  color: #e2e8f0;
-  background: rgba(255, 255, 255, 0.05);
+  color: #3E2723;
+  background: rgba(93, 64, 55, 0.06);
 }
 
 .nav-link.active {
-  color: #c7d2fe;
-  background: rgba(99, 102, 241, 0.12);
+  color: #3E2723;
+  background: rgba(93, 64, 55, 0.1);
+  font-weight: 700;
 }
 
 .nav-link.active::after {
@@ -343,7 +343,7 @@ const closeUserMenu = () => {
   transform: translateX(-50%);
   width: 20px;
   height: 2px;
-  background: #6366f1;
+  background: #5D4037;
   border-radius: 2px;
 }
 
@@ -371,21 +371,21 @@ const closeUserMenu = () => {
 }
 
 .badge-admin {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(93, 64, 55, 0.1);
+  color: #5D4037;
+  border: 1px solid rgba(93, 64, 55, 0.2);
 }
 
 .badge-manager {
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(121, 85, 72, 0.1);
+  color: #795548;
+  border: 1px solid rgba(121, 85, 72, 0.2);
 }
 
 .badge-sales {
-  background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
-  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: rgba(141, 110, 99, 0.1);
+  color: #8D6E63;
+  border: 1px solid rgba(141, 110, 99, 0.2);
 }
 
 /* ─── User Avatar ─── */
@@ -398,7 +398,7 @@ const closeUserMenu = () => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #a78bfa);
+  background: linear-gradient(135deg, #5D4037, #8D6E63);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -410,7 +410,7 @@ const closeUserMenu = () => {
 }
 
 .user-avatar:hover {
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 0 3px rgba(93, 64, 55, 0.25);
 }
 
 /* ─── User Dropdown ─── */
@@ -419,10 +419,10 @@ const closeUserMenu = () => {
   top: calc(100% + 10px);
   right: 0;
   width: 260px;
-  background: #1e1f2e;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  background: #fff;
+  border: 1px solid #EDE8E4;
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(93, 64, 55, 0.18);
   padding: 0.5rem;
   z-index: 1100;
 }
@@ -438,7 +438,7 @@ const closeUserMenu = () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #a78bfa);
+  background: linear-gradient(135deg, #5D4037, #8D6E63);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -455,7 +455,7 @@ const closeUserMenu = () => {
 }
 
 .dropdown-name {
-  color: #e2e8f0;
+  color: #3E2723;
   font-weight: 600;
   font-size: 0.9rem;
   white-space: nowrap;
@@ -464,7 +464,7 @@ const closeUserMenu = () => {
 }
 
 .dropdown-email {
-  color: #64748b;
+  color: #A1887F;
   font-size: 0.78rem;
   white-space: nowrap;
   overflow: hidden;
@@ -473,7 +473,7 @@ const closeUserMenu = () => {
 
 .dropdown-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #EDE8E4;
   margin: 0.25rem 0;
 }
 
@@ -485,12 +485,13 @@ const closeUserMenu = () => {
   padding: 0.65rem 0.75rem;
   border: none;
   background: transparent;
-  color: #ef4444;
+  color: #dc2626;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s ease;
+  font-family: inherit;
 }
 
 .dropdown-item .material-symbols-outlined {
@@ -498,7 +499,7 @@ const closeUserMenu = () => {
 }
 
 .dropdown-item:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.08);
 }
 
 /* ─── Overlay for closing menus ─── */
@@ -515,7 +516,7 @@ const closeUserMenu = () => {
   display: none;
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: #795548;
   cursor: pointer;
   padding: 0.4rem;
   border-radius: 8px;
@@ -523,14 +524,15 @@ const closeUserMenu = () => {
 }
 
 .mobile-toggle:hover {
-  color: #e2e8f0;
+  color: #3E2723;
 }
 
 .nav-mobile {
   display: none;
   flex-direction: column;
   padding: 0.5rem 1rem 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid #EDE8E4;
+  background: #FAF8F6;
 }
 
 .nav-link-mobile {
@@ -540,7 +542,7 @@ const closeUserMenu = () => {
   padding: 0.7rem 1rem;
   border-radius: 8px;
   text-decoration: none;
-  color: #94a3b8;
+  color: #795548;
   font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -549,12 +551,13 @@ const closeUserMenu = () => {
   cursor: pointer;
   width: 100%;
   text-align: left;
+  font-family: inherit;
 }
 
 .nav-link-mobile:hover,
 .nav-link-mobile.active {
-  color: #c7d2fe;
-  background: rgba(99, 102, 241, 0.1);
+  color: #3E2723;
+  background: rgba(93, 64, 55, 0.08);
 }
 
 .nav-link-mobile .material-symbols-outlined {
@@ -563,17 +566,17 @@ const closeUserMenu = () => {
 
 .mobile-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #EDE8E4;
   margin: 0.5rem 0;
 }
 
 .logout-mobile {
-  color: #ef4444;
+  color: #dc2626;
 }
 
 .logout-mobile:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
 }
 
 /* ═══════════════════════════════════════════

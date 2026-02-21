@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import inventoryService from '@/services/inventoryService'
 import orderService from '@/services/orderService'
+import LoadingScreen from '@/components/LoadingScreen.vue'
 
 const router = useRouter()
 
@@ -18,647 +19,323 @@ const submitting = ref(false)
 const error = ref(null)
 const success = ref(null)
 
-// Load branches on mount
-onMounted(async () => {
+const fetchBranches = async () => {
   loadingBranches.value = true
   try {
-    const res = await api.get('/all-branches')
+    const res = await api.get('/my-branches')
     branches.value = res.data
   } catch (err) {
-    error.value = 'Failed to load branches. Please refresh the page.'
+    error.value = 'Failed to load store registry.'
+  } finally {
+    loadingBranches.value = false
   }
-  loadingBranches.value = false
-})
+}
 
-// When branch changes, fetch products
 const onBranchChange = async () => {
   error.value = null
   if (!branch_id.value) {
     products.value = []
     return
   }
-
   loadingProducts.value = true
   try {
     const res = await inventoryService.getProductsByBranch(branch_id.value)
     products.value = res.data
     items.value = [{ product_id: '', quantity: 1 }]
   } catch (err) {
-    error.value = 'Failed to load products for this branch.'
+    error.value = 'Failed to sync branch inventory.'
     products.value = []
+  } finally {
+    loadingProducts.value = false
   }
-  loadingProducts.value = false
 }
 
-const addItem = () => {
-  items.value.push({ product_id: '', quantity: 1 })
-}
+const addItem = () => items.value.push({ product_id: '', quantity: 1 })
+const removeItem = (i) => items.value.splice(i, 1)
 
-const removeItem = (index) => {
-  items.value.splice(index, 1)
-}
-
-// Get product details for display
-const getProduct = (productId) => {
-  return products.value.find(p => p.id === productId)
-}
+const getProduct = (id) => products.value.find(p => p.id === id)
 
 const subtotal = computed(() => {
-  return items.value.reduce((sum, item) => {
-    const product = getProduct(item.product_id)
-    if (!product) return sum
-    return sum + product.sale_price * item.quantity
+  return items.value.reduce((s, i) => {
+    const p = getProduct(i.product_id)
+    return s + (p ? (p.sale_price * i.quantity) : 0)
   }, 0)
 })
 
 const tax = computed(() => {
-  return items.value.reduce((sum, item) => {
-    const product = getProduct(item.product_id)
-    if (!product) return sum
-    return sum + (product.sale_price * item.quantity * (product.tax_percentage / 100))
+  return items.value.reduce((s, i) => {
+    const p = getProduct(i.product_id)
+    return s + (p ? (p.sale_price * i.quantity * (p.tax_percentage / 100)) : 0)
   }, 0)
 })
 
 const total = computed(() => subtotal.value + tax.value)
-
 const validItems = computed(() => items.value.filter(i => i.product_id && i.quantity > 0))
-
 const canSubmit = computed(() => branch_id.value && validItems.value.length > 0 && !submitting.value)
 
 const submitOrder = async () => {
   error.value = null
-  success.value = null
   submitting.value = true
-
   try {
     await orderService.create({
       branch_id: branch_id.value,
       items: validItems.value
     })
-    success.value = 'Order created successfully!'
-    // Reset form after short delay
-    setTimeout(() => {
-      branch_id.value = ''
-      products.value = []
-      items.value = [{ product_id: '', quantity: 1 }]
-      success.value = null
-    }, 2000)
+    success.value = 'Order confirmed.'
+    setTimeout(() => router.push('/dashboard'), 1200)
   } catch (e) {
-    error.value = e.response?.data?.message || 'Failed to create order. Please try again.'
+    error.value = e.response?.data?.message || 'Checkout error.'
+  } finally {
+    submitting.value = false
   }
-  submitting.value = false
 }
+
+onMounted(fetchBranches)
 </script>
 
 <template>
-  <div class="order-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <router-link to="/dashboard" class="back-link">
+  <div class="oc-page">
+    <LoadingScreen v-if="loadingBranches || submitting" :show="true" :message="submitting ? 'Processing Transaction…' : 'Loading Sites…'" />
+
+    <!-- ══ HEADER ══ -->
+    <div class="oc-v2-header">
+      <router-link to="/dashboard" class="oc-back">
         <span class="material-symbols-outlined">arrow_back</span>
-        Back to Dashboard
+        DASHBOARD
       </router-link>
-      <h1>
-        <span class="material-symbols-outlined page-icon">receipt_long</span>
-        Create Order
-      </h1>
-      <p class="page-sub">Select a branch, add products, and submit your order</p>
+      <div class="oc-title-row">
+        <h1 class="oc-title">CREATE ORDER</h1>
+        <div class="oc-badge">V2 ENTERPRISE</div>
+      </div>
     </div>
 
-    <!-- Error Banner -->
-    <div v-if="error" class="alert alert-error">
-      <span class="material-symbols-outlined">error</span>
+    <!-- ══ ALERTS ══ -->
+    <div v-if="error" class="oc-banner al-err">
+      <span class="material-symbols-outlined">report</span>
       {{ error }}
-      <button class="alert-close" @click="error = null">
-        <span class="material-symbols-outlined">close</span>
-      </button>
+      <button @click="error = null" class="al-close">×</button>
     </div>
-
-    <!-- Success Banner -->
-    <div v-if="success" class="alert alert-success">
+    <div v-if="success" class="oc-banner al-ok">
       <span class="material-symbols-outlined">check_circle</span>
       {{ success }}
     </div>
 
-    <div class="order-layout">
-      <!-- Left: Form -->
-      <div class="order-form-section">
-        <!-- Branch Selection -->
-        <div class="section-card">
-          <h3 class="section-title">
-            <span class="material-symbols-outlined">store</span>
-            Select Branch
-          </h3>
-
-          <div v-if="loadingBranches" class="field-loading">
-            <span class="material-symbols-outlined spin">progress_activity</span>
-            Loading branches...
+    <!-- ══ REVERSED GRID ══ -->
+    <div class="oc-layout">
+      
+      <!-- LEFT: FINAL SUMMARY (REVERTED DESIGN) -->
+      <div class="oc-side">
+        <div class="oc-card oc-sticky">
+          <div class="oc-card-head">
+            <span class="material-symbols-outlined">receipt_long</span>
+            <h3>FINAL SUMMARY</h3>
           </div>
 
-          <div v-else class="form-group">
-            <select v-model="branch_id" @change="onBranchChange" class="form-select">
-              <option value="" disabled>-- Select Branch --</option>
-              <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                {{ branch.name }}
-              </option>
+          <div class="sum-box">
+            <div class="sum-row">
+              <span class="sum-lbl">SKU COUNT</span>
+              <span class="sum-val">{{ validItems.length }}</span>
+            </div>
+            <div class="sum-row">
+              <span class="sum-lbl">NET TOTAL</span>
+              <span class="sum-val">Rs.{{ subtotal.toLocaleString() }}</span>
+            </div>
+            <div class="sum-row">
+              <span class="sum-lbl">VAT / TAX</span>
+              <span class="sum-val">Rs.{{ tax.toLocaleString() }}</span>
+            </div>
+            <div class="sum-divider"></div>
+            <div class="sum-row sum-main">
+              <span class="sum-lbl">GRAND TOTAL</span>
+              <span class="sum-val">Rs.{{ total.toLocaleString() }}</span>
+            </div>
+          </div>
+
+          <button class="btn-finalize" :disabled="!canSubmit" @click="submitOrder">
+            <span class="material-symbols-outlined">check_circle</span>
+            {{ submitting ? 'PROCESSING...' : 'CONFIRM ORDER' }}
+          </button>
+          <p class="oc-hint-footer">Automated stock deduction will follow confirmation.</p>
+        </div>
+      </div>
+
+      <!-- RIGHT: ORDER FORM -->
+      <div class="oc-main">
+        <!-- Site Allocation -->
+        <div class="oc-card">
+          <div class="oc-card-head">
+            <span class="material-symbols-outlined">business</span>
+            <h3>BRANCH ALLOCATION</h3>
+          </div>
+          <div class="oc-select-wrap">
+            <select v-model="branch_id" @change="onBranchChange" class="oc-input oc-select">
+              <option value="" disabled>— SELECT ACTIVE BRANCH —</option>
+              <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
             </select>
+            <span class="material-symbols-outlined oc-arrow">expand_more</span>
           </div>
         </div>
 
-        <!-- Products Section -->
-        <div class="section-card">
-          <h3 class="section-title">
-            <span class="material-symbols-outlined">shopping_cart</span>
-            Order Items
-          </h3>
-
-          <p v-if="!branch_id" class="hint-text">
-            <span class="material-symbols-outlined">info</span>
-            Please select a branch first
-          </p>
-
-          <div v-else-if="loadingProducts" class="field-loading">
-            <span class="material-symbols-outlined spin">progress_activity</span>
-            Loading products...
+        <!-- Catalog Selection -->
+        <div class="oc-card">
+          <div class="oc-card-head">
+            <span class="material-symbols-outlined">inventory</span>
+            <h3>ORDER PARTICULARS</h3>
           </div>
 
-          <p v-else-if="products.length === 0" class="hint-text">
-            <span class="material-symbols-outlined">inventory_2</span>
-            No products with stock at this branch
-          </p>
+          <div v-if="!branch_id" class="oc-empty-pad">
+            <span class="material-symbols-outlined">info</span>
+            SELECT A BRANCH ABOVE TO BEGIN TRANSACTION
+          </div>
 
           <template v-else>
-            <div v-for="(item, index) in items" :key="index" class="item-row">
-              <div class="item-fields">
-                <div class="form-group flex-2">
-                  <label>Product</label>
-                  <select v-model="item.product_id" class="form-select">
-                    <option value="" disabled>-- Select Product --</option>
-                    <option
-                      v-for="product in products"
-                      :key="product.id"
-                      :value="product.id"
-                      :disabled="product.status === 'inactive'"
-                    >
-                      {{ product.name }} — Rs.{{ product.sale_price }} (Stock: {{ product.stock }}){{ product.status === 'inactive' ? ' [Inactive]' : '' }}
-                    </option>
-                  </select>
+            <div class="oc-list">
+              <div v-for="(item, idx) in items" :key="idx" class="oc-item-row">
+                <div class="oc-item-cols">
+                  <div class="oc-col-prod">
+                    <label>PRODUCT SKU</label>
+                    <div class="oc-select-wrap">
+                      <select v-model="item.product_id" class="oc-input oc-select">
+                        <option value="" disabled>— CHOOSE ITEM —</option>
+                        <option 
+                          v-for="p in products" 
+                          :key="p.id" 
+                          :value="p.id" 
+                          :disabled="p.status === 'inactive' || p.stock < 1"
+                        >
+                          {{ p.name }} (STOCK: {{ p.stock }})
+                        </option>
+                      </select>
+                      <span class="material-symbols-outlined oc-arrow">expand_more</span>
+                    </div>
+                  </div>
+                  
+                  <div class="oc-col-qty">
+                    <label>QTY</label>
+                    <input type="number" v-model.number="item.quantity" class="oc-input" min="1" />
+                  </div>
+
+                  <div class="oc-col-price">
+                    <label>LINE TOTAL</label>
+                    <div class="oc-line-price">
+                      Rs.{{ (getProduct(item.product_id)? (getProduct(item.product_id).sale_price * item.quantity) : 0).toLocaleString() }}
+                    </div>
+                  </div>
+
+                  <button class="oc-btn-del" @click="removeItem(idx)" :disabled="items.length < 2">
+                    <span class="material-symbols-outlined">close</span>
+                  </button>
                 </div>
-
-                <div class="form-group flex-1">
-                  <label>Qty</label>
-                  <input
-                    type="number"
-                    v-model.number="item.quantity"
-                    min="1"
-                    class="form-input"
-                    placeholder="1"
-                  />
+                <!-- Mini info -->
+                <div v-if="getProduct(item.product_id)" class="oc-item-details">
+                  UNIT: Rs.{{ getProduct(item.product_id).sale_price }} • TAX: {{ getProduct(item.product_id).tax_percentage }}%
                 </div>
-
-                <button
-                  class="btn-remove"
-                  @click="removeItem(index)"
-                  :disabled="items.length <= 1"
-                  title="Remove item"
-                >
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </div>
-
-              <!-- Line total preview -->
-              <div v-if="getProduct(item.product_id)" class="line-total">
-                Line total: Rs.{{ (getProduct(item.product_id).sale_price * item.quantity).toFixed(2) }}
               </div>
             </div>
 
-            <button class="btn-add-item" @click="addItem">
+            <button class="oc-btn-add" @click="addItem">
               <span class="material-symbols-outlined">add</span>
-              Add Another Product
+              APPEND NEW LINE
             </button>
           </template>
         </div>
       </div>
 
-      <!-- Right: Order Summary -->
-      <div class="order-summary-section">
-        <div class="section-card summary-card">
-          <h3 class="section-title">
-            <span class="material-symbols-outlined">summarize</span>
-            Order Summary
-          </h3>
-
-          <div class="summary-rows">
-            <div class="summary-row">
-              <span>Items</span>
-              <span>{{ validItems.length }}</span>
-            </div>
-            <div class="summary-row">
-              <span>Subtotal</span>
-              <span>Rs.{{ subtotal.toFixed(2) }}</span>
-            </div>
-            <div class="summary-row">
-              <span>Tax</span>
-              <span>Rs.{{ tax.toFixed(2) }}</span>
-            </div>
-            <div class="summary-divider"></div>
-            <div class="summary-row total-row">
-              <span>Grand Total</span>
-              <span>Rs.{{ total.toFixed(2) }}</span>
-            </div>
-          </div>
-
-          <button
-            class="btn-submit"
-            :disabled="!canSubmit"
-            @click="submitOrder"
-          >
-            <span v-if="submitting" class="material-symbols-outlined spin">progress_activity</span>
-            <span v-else class="material-symbols-outlined">shopping_cart_checkout</span>
-            {{ submitting ? 'Processing...' : 'Submit Order' }}
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.order-page {
-  animation: fadeIn 0.4s ease;
+.oc-page {
+  animation: pageIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  background: #FCFAF9; min-height: 100vh; padding: 1.5rem;
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Header */
+.oc-v2-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1.5px solid #EDE8E4; padding-bottom: 1.5rem; }
+.oc-back { display: flex; align-items: center; gap: 0.4rem; color: #8D6E63; text-decoration: none; font-size: 0.8rem; font-weight: 800; }
+.oc-title-row { text-align: right; }
+.oc-title { font-size: 1.5rem; font-weight: 900; color: #3E2723; margin: 0; letter-spacing: -0.02em; }
+.oc-badge { font-size: 0.65rem; font-weight: 900; color: #fff; background: #3E2723; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.25rem; }
+
+/* Banner */
+.oc-banner { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.25rem; border-radius: 12px; margin-bottom: 1.25rem; font-weight: 700; font-size: 0.85rem; }
+.al-err { background: #fee2e2; border: 1.5px solid #fecaca; color: #b91c1c; }
+.al-ok { background: #ecfdf5; border: 1.5px solid #d1fae5; color: #065f46; }
+.al-close { margin-left: auto; border: none; background: none; font-size: 1.25rem; color: inherit; cursor: pointer; }
+
+/* Reversed Layout */
+.oc-layout { display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem; align-items: start; }
+
+.oc-card { background: #fff; border: 1.5px solid #E0D7D0; border-radius: 24px; padding: 1.5rem; box-shadow: 0 4px 20px rgba(93,64,55,0.04); margin-bottom: 1.25rem; }
+.oc-card-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.5rem; }
+.oc-card-head .material-symbols-outlined { color: #8D6E63; font-size: 20px; }
+.oc-card-head h3 { font-size: 1.1rem; font-weight: 850; color: #3E2723; margin: 0; }
+
+.oc-input {
+  width: 100%; padding: 0.8rem 1rem; border: 1.5px solid #D7CCC8; border-radius: 12px;
+  background: #fff; font-family: inherit; font-size: 0.9rem; color: #3E2723; font-weight: 600; outline: none; transition: all 0.2s;
 }
+.oc-input:focus { border-color: #8D6E63; box-shadow: 0 0 0 4px rgba(141,110,99,0.06); }
+.oc-select { appearance: none; cursor: pointer; }
+.oc-select-wrap { position: relative; }
+.oc-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: #A1887F; font-size: 20px; }
 
-/* ── Header ── */
-.page-header {
-  margin-bottom: 1.5rem;
+/* Left Summary Card (Reverted Style) */
+.sum-box { margin-bottom: 1.5rem; }
+.sum-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.sum-lbl { font-size: 0.8rem; font-weight: 800; color: #A1887F; text-transform: uppercase; letter-spacing: 0.05em; }
+.sum-val { font-size: 1rem; font-weight: 850; color: #3E2723; }
+.sum-divider { height: 1.5px; background: #EDE8E4; margin: 1rem 0; border: none; }
+.sum-main .sum-lbl { font-size: 0.95rem; color: #3E2723; font-weight: 900; }
+.sum-main .sum-val { font-size: 1.4rem; color: #3E2723; font-weight: 950; }
+
+.btn-finalize {
+  width: 100%; padding: 1rem; border: none; border-radius: 14px; background: #3E2723; color: #fff;
+  font-size: 1rem; font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  transition: all 0.2s; box-shadow: 0 4px 16px rgba(62,39,35,0.22);
 }
+.btn-finalize:hover:not(:disabled) { background: #5D4037; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(62,39,35,0.3); }
+.btn-finalize:disabled { opacity: 0.5; transform: none; box-shadow: none; cursor: not-allowed; }
+.oc-hint-footer { font-size: 0.7rem; color: #BCAAA4; text-align: center; margin-top: 1rem; font-weight: 600; }
 
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #818cf8;
-  text-decoration: none;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 0.75rem;
-  transition: color 0.2s;
+.oc-sticky { position: sticky; top: 1.5rem; }
+
+/* Right Form Style */
+.oc-empty-pad { padding: 4rem 1rem; text-align: center; color: #BCAAA4; font-size: 0.85rem; font-weight: 800; border: 1.5px dashed #E0D7D0; border-radius: 12px; }
+.oc-list { display: flex; flex-direction: column; gap: 1rem; }
+.oc-item-row { padding-bottom: 1rem; border-bottom: 1px solid #FAF9F7; }
+.oc-item-row:last-child { border-bottom: none; }
+
+.oc-item-cols { display: flex; align-items: flex-end; gap: 1rem; }
+.oc-item-cols label { display: block; font-size: 0.68rem; font-weight: 900; color: #8D6E63; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.oc-col-prod { flex: 1; }
+.oc-col-qty { width: 90px; border-color: #D7CCC8; }
+.oc-col-price { width: 140px; text-align: right; }
+.oc-line-price { font-size: 1rem; font-weight: 850; color: #3E2723; padding: 0.65rem 0; }
+
+.oc-btn-del { 
+  width: 44px; height: 44px; border-radius: 12px; background: #fff; border: 1.5px solid #F8D7DA; color: #C62828; 
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
 }
+.oc-btn-del:hover:not(:disabled) { background: #FFF5F5; border-color: #EF4444; }
 
-.back-link:hover {
-  color: #a5b4fc;
+.oc-item-details { display: flex; gap: 1.25rem; margin-top: 0.5rem; font-size: 0.72rem; font-weight: 750; color: #A1887F; background: #FAF9F7; padding: 0.3rem 0.6rem; border-radius: 6px; }
+
+.oc-btn-add {
+  width: 100%; padding: 0.8rem; border: 1.5px dashed #D7CCC8; border-radius: 14px; background: #FAF9F7; color: #8D6E63;
+  font-weight: 900; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s; margin-top: 1.5rem;
 }
+.oc-btn-add:hover { background: #fff; border-color: #8D6E63; color: #3E2723; }
 
-.back-link .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.page-header h1 {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 0.3rem;
-}
-
-.page-icon {
-  font-size: 28px;
-  color: #fbbf24;
-}
-
-.page-sub {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
-/* ── Alerts ── */
-.alert {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  margin-bottom: 1.25rem;
-  animation: fadeIn 0.3s ease;
-}
-
-.alert-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #f87171;
-}
-
-.alert-success {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  color: #34d399;
-}
-
-.alert-close {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.7;
-  padding: 0;
-}
-
-.alert-close:hover {
-  opacity: 1;
-}
-
-.alert-close .material-symbols-outlined {
-  font-size: 18px;
-}
-
-/* ── Layout ── */
-.order-layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 1rem;
-  align-items: start;
-}
-
-.section-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 1.25rem;
-  margin-bottom: 0.75rem;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #e2e8f0;
-  margin: 0 0 1rem;
-}
-
-.section-title .material-symbols-outlined {
-  font-size: 20px;
-  color: #94a3b8;
-}
-
-/* ── Loading ── */
-.field-loading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 0;
-  color: #64748b;
-  font-size: 0.88rem;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  font-size: 20px;
-}
-
-/* ── Hint text ── */
-.hint-text {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #64748b;
-  font-size: 0.88rem;
-  margin: 0;
-  padding: 0.5rem 0;
-}
-
-.hint-text .material-symbols-outlined {
-  font-size: 18px;
-}
-
-/* ── Form fields ── */
-.form-group {
-  margin-bottom: 0.75rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.35rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.form-select,
-.form-input {
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: #e2e8f0;
-  font-size: 0.9rem;
-  font-family: inherit;
-  box-sizing: border-box;
-  transition: border-color 0.2s;
-}
-
-.form-select:focus,
-.form-input:focus {
-  outline: none;
-  border-color: rgba(251, 191, 36, 0.4);
-  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.1);
-}
-
-.form-select option {
-  background: #1e1f2e;
-  color: #e2e8f0;
-}
-
-/* ── Item rows ── */
-.item-row {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.item-row:last-of-type {
-  border-bottom: none;
-}
-
-.item-fields {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-end;
-}
-
-.flex-2 { flex: 2; }
-.flex-1 { flex: 1; }
-
-.btn-remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  background: rgba(239, 68, 68, 0.08);
-  color: #f87171;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s;
-}
-
-.btn-remove:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.35);
-}
-
-.btn-remove:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.btn-remove .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.line-total {
-  font-size: 0.78rem;
-  color: #64748b;
-  margin-top: 0.35rem;
-  text-align: right;
-}
-
-.btn-add-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.6rem;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: transparent;
-  color: #94a3b8;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  margin-top: 0.75rem;
-  transition: all 0.2s;
-}
-
-.btn-add-item:hover {
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.05);
-}
-
-.btn-add-item .material-symbols-outlined {
-  font-size: 18px;
-}
-
-/* ── Summary ── */
-.summary-card {
-  position: sticky;
-  top: 80px;
-}
-
-.summary-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.88rem;
-  color: #94a3b8;
-}
-
-.total-row {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.summary-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.06);
-  margin: 0.25rem 0;
-}
-
-.btn-submit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.75rem;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s;
-  font-family: inherit;
-}
-
-.btn-submit:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
-}
-
-.btn-submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.btn-submit .material-symbols-outlined {
-  font-size: 20px;
-}
-
-/* ── Responsive ── */
-@media (max-width: 900px) {
-  .order-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .summary-card {
-    position: static;
-  }
-}
-
-@media (max-width: 640px) {
-  .item-fields {
-    flex-wrap: wrap;
-  }
-
-  .flex-2, .flex-1 {
-    flex: 1 1 100%;
-  }
-
-  .page-header h1 {
-    font-size: 1.3rem;
-  }
+@media (max-width: 1024px) {
+  .oc-layout { grid-template-columns: 1fr; }
+  .oc-side { order: 2; }
+  .oc-main { order: 1; }
+  .oc-sticky { position: static; }
 }
 </style>

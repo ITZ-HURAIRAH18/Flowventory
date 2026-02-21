@@ -5,21 +5,26 @@ import AppHeader from '@/components/AppHeader.vue'
 
 const route = useRoute()
 
-// Only show header on authenticated pages (not the login page)
+// Only show header on authenticated pages (not the login/home page)
 const showHeader = computed(() => {
   return route.path !== '/login' && route.path !== '/'
 })
 
-// Detect login page to remove container constraints
+// Detect login/home page to remove container constraints
 const isLoginPage = computed(() => {
-  return route.path === '/login' || route.path === '/'
+  return route.path === '/login'
+})
+
+// Detect home page for dark background
+const isHomePage = computed(() => {
+  return route.path === '/'
 })
 </script>
 
 <template>
-  <div id="app" :class="{ 'login-page-active': isLoginPage }">
+  <div id="app" :class="{ 'login-page-active': isLoginPage, 'home-page-active': isHomePage }">
     <AppHeader v-if="showHeader" />
-    <main class="app-main" :class="{ 'with-header': showHeader, 'no-container': isLoginPage }">
+    <main class="app-main" :class="{ 'with-header': showHeader, 'no-container': isLoginPage || isHomePage }">
       <router-view />
     </main>
   </div>
@@ -46,8 +51,8 @@ html, body {
 #app {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
-  background: #0f1117;
-  color: #e2e8f0;
+  background: #FAF8F6;
+  color: #3E2723;
 }
 
 .app-main {
@@ -58,10 +63,16 @@ html, body {
 
 .app-main.with-header {
   padding-top: 1.5rem;
+  min-height: calc(100vh - 64px);
 }
 
 /* Login page — remove all container constraints */
 .login-page-active {
+  background: #FAF8F6 !important;
+}
+
+/* Home page — warm white background */
+.home-page-active {
   background: #FAF8F6 !important;
 }
 

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import Home from '@/views/Home.vue'
 import Login from '@/views/Login.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import AdminPanel from '@/views/AdminPanel.vue'
@@ -27,6 +28,7 @@ import ReportsList from '@/views/reports/ReportsList.vue'
 import OrderCreate from '@/views/orders/OrderCreate.vue'
 
 const routes = [
+  { path: '/', component: Home },
   { path: '/login', component: Login },
 
   {
