@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import productService from '@/services/productService'
+import { toast } from '@/composables/useToast'
 import ProductForm from './ProductForm.vue'
 import LoadingScreen from '@/components/LoadingScreen.vue'
 
@@ -45,17 +46,25 @@ const inactiveCount  = computed(() => totalProducts.value - activeCount.value)
 /* ── actions ── */
 const openCreate = () => { editTarget.value = null; showModal.value = true }
 const openEdit   = (p) => { editTarget.value = p;    showModal.value = true }
-const onSaved    = () => { showModal.value = false; fetchProducts() }
+const onSaved    = () => { 
+  // Don't refresh immediately - let the toast be visible
+  setTimeout(() => {
+    showModal.value = false; 
+    fetchProducts();
+  }, 100)
+}
 const onClose    = () => { showModal.value = false }
 
 const deleteProduct = async (id) => {
   if (!confirm('Delete this product? This will remove it from the catalog.')) return
   deletingId.value = id
+  const product = products.value.find(p => p.id === id)
   try {
     await productService.delete(id)
     products.value = products.value.filter(p => p.id !== id)
+    toast.success('Product Deleted', `${product?.name || 'Product'} has been deleted successfully.`)
   } catch {
-    alert('Failed to delete product.')
+    toast.error('Delete Failed', 'Failed to delete product. Please try again.')
   } finally {
     deletingId.value = null
   }

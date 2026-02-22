@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import userService from '@/services/userService'
+import { toast } from '@/composables/useToast'
 
 // UI Components
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -70,11 +71,16 @@ const submitForm = async () => {
   try {
     if (isEdit.value) {
       await userService.update(props.userObject.id, form)
+      toast.success('User Updated', `${form.name} has been updated successfully.`)
     } else {
       await userService.create(form)
+      toast.success('User Created', `${form.name} has been created successfully.`)
     }
-    emit('saved')
-    emit('close')
+    // Add delay so user can see the toast before closing
+    setTimeout(() => {
+      emit('saved')
+      emit('close')
+    }, 800)
   } catch (err) {
     globalError.value = err?.response?.data?.message || 'An error occurred. Please try again.'
     if (err.response?.status === 422 && err.response?.data?.errors) {

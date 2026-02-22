@@ -64,7 +64,13 @@ const roleLabel = (name) => {
 /* ── actions ── */
 const openCreate = () => { editTarget.value = null; showModal.value = true }
 const openEdit   = (u) => { editTarget.value = u;    showModal.value = true }
-const onSaved    = () => { showModal.value = false; fetchUsers() }
+const onSaved    = () => { 
+  // Don't refresh immediately - let the toast be visible
+  setTimeout(() => {
+    showModal.value = false; 
+    fetchUsers();
+  }, 100)
+}
 const onClose    = () => { showModal.value = false }
 
 const deleteUser = async (id, name) => {

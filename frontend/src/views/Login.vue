@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
+import { toast } from '@/composables/useToast'
 
 // UI Components
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -29,6 +30,7 @@ const login = async () => {
     localStorage.setItem('token', response.data.access_token)
     localStorage.setItem('user', JSON.stringify(response.data.user))
 
+    toast.success('Login Successful', `Welcome back, ${response.data.user.name}!`)
     router.push('/dashboard')
   } catch (err) {
     error.value = err.response?.data?.message || 'Login failed. Please try again.'

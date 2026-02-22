@@ -49,11 +49,10 @@ const clearTimer = () => {
 }
 
 const close = () => {
-  visible.value = false
   clearTimer()
-  setTimeout(() => {
-    emit('close')
-  }, 300)
+  visible.value = false
+  // Emit close event immediately for better responsiveness
+  emit('close')
 }
 
 const handleMouseEnter = () => {
@@ -119,10 +118,11 @@ onMounted(() => {
   min-width: 320px;
   max-width: 480px;
   overflow: hidden;
-  transform: translateX(100%);
+  transform: translateX(50px); /* Slide in from closer position */
   opacity: 0;
   transition: all 0.3s ease-out;
   position: relative;
+  z-index: 1; /* Ensure proper stacking */
 }
 
 .toast-visible {
@@ -135,6 +135,7 @@ onMounted(() => {
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1rem;
+  position: relative; /* Ensure proper positioning context */
 }
 
 .toast-icon {
@@ -174,24 +175,32 @@ onMounted(() => {
   flex-shrink: 0;
   background: none;
   border: none;
-  padding: 0;
-  width: 20px;
-  height: 20px;
+  padding: 4px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #9ca3af;
   cursor: pointer;
   border-radius: 4px;
-  transition: color 0.2s ease;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 10; /* Ensure close button is above other elements */
 }
 
 .toast-close:hover {
   color: #6b7280;
+  background-color: #f3f4f6;
+}
+
+.toast-close:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #3b82f6;
 }
 
 .toast-close .material-symbols-outlined {
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .toast-progress {
@@ -270,12 +279,12 @@ onMounted(() => {
 }
 
 .toast-enter-from {
-  transform: translateX(100%);
+  transform: translateX(50px);
   opacity: 0;
 }
 
 .toast-leave-to {
-  transform: translateX(100%);
+  transform: translateX(50px);
   opacity: 0;
 }
 
@@ -295,12 +304,36 @@ onMounted(() => {
     color: #d1d5db;
   }
   
-  .toast-close {
-    color: #9ca3af;
+  .toast-close:hover {
+    background-color: #374151;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .toast-item {
+    min-width: 280px;
+    max-width: calc(100vw - 1rem); /* Prevent overflow on small screens */
+    width: calc(100% - 1rem);
   }
   
-  .toast-close:hover {
-    color: #d1d5db;
+  .toast-content {
+    padding: 0.75rem;
+  }
+  
+  .toast-title {
+    font-size: 0.8rem;
+    word-break: break-word; /* Prevent long text from causing overflow */
+  }
+  
+  .toast-message {
+    font-size: 0.75rem;
+    word-break: break-word; /* Prevent long text from causing overflow */
+  }
+  
+  .toast-close {
+    width: 32px;
+    height: 32px; /* Larger touch target on mobile */
   }
 }
 </style>

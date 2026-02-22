@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
+import { toast } from '@/composables/useToast'
 import api from '@/services/api'
 
 // UI Components
@@ -56,7 +57,11 @@ const submit = async () => {
       product_id: productId.value,
       quantity: quantity.value
     })
-    router.push('/inventory')
+    toast.success('Stock Added', `Successfully added ${quantity.value} items to inventory.`)
+    // Add delay so user can see the toast before redirecting
+    setTimeout(() => {
+      router.push('/inventory')
+    }, 800)
   } catch (err) {
     globalError.value = err.response?.data?.message || 'Failed to add stock.'
   } finally {

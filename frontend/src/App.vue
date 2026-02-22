@@ -49,7 +49,7 @@ html, body {
   padding: 0;
   width: 100%;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: hidden; /* Prevent horizontal scrolling globally */
 }
 
 #app {
@@ -57,6 +57,7 @@ html, body {
   min-height: 100vh;
   background: #FAF8F6;
   color: #3E2723;
+  overflow-x: hidden; /* Prevent horizontal scrolling on app level */
 }
 
 .app-main {

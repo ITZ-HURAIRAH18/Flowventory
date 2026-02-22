@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import branchService from '@/services/branchService'
+import { toast } from '@/composables/useToast'
 import api from '@/services/api'
 
 // UI Components
@@ -48,11 +49,16 @@ const submitForm = async () => {
   try {
     if (isEdit.value) {
       await branchService.update(props.branch.id, form)
+      toast.success('Branch Updated', `${form.name} has been updated successfully.`)
     } else {
       await branchService.create(form)
+      toast.success('Branch Created', `${form.name} has been created successfully.`)
     }
-    emit('saved')
-    emit('close')
+    // Add delay so user can see the toast before closing
+    setTimeout(() => {
+      emit('saved')
+      emit('close')
+    }, 800)
   } catch (err) {
     globalError.value = err?.response?.data?.message || 'An error occurred. Please try again.'
   } finally {

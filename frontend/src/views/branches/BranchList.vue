@@ -49,7 +49,13 @@ const unmanagedCount = computed(() => totalBranches.value - managedCount.value)
 /* ── actions ── */
 const openCreate = () => { editTarget.value = null; showModal.value = true }
 const openEdit   = (b) => { editTarget.value = b;    showModal.value = true }
-const onSaved    = () => { showModal.value = false; fetchBranches() }
+const onSaved    = () => { 
+  // Don't refresh immediately - let the toast be visible
+  setTimeout(() => {
+    showModal.value = false; 
+    fetchBranches();
+  }, 100)
+}
 const onClose    = () => { showModal.value = false }
 
 const deleteBranch = async (id) => {

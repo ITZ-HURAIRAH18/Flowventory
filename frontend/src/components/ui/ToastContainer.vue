@@ -1,51 +1,13 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useToast } from '@/composables/useToast'
 import ToastNotification from './ToastNotification.vue'
 
-const toasts = ref([])
-let toastId = 0
+const { toasts, removeToast } = useToast()
 
-const addToast = (options) => {
-  const id = ++toastId
-  const toast = {
-    id,
-    type: options.type || 'info',
-    title: options.title,
-    message: options.message || '',
-    duration: options.duration !== undefined ? options.duration : 5000,
-    showIcon: options.showIcon !== undefined ? options.showIcon : true,
-    closable: options.closable !== undefined ? options.closable : true
-  }
-  
-  toasts.value.push(toast)
-  return id
-}
-
-const removeToast = (id) => {
-  const index = toasts.value.findIndex(toast => toast.id === id)
-  if (index > -1) {
-    toasts.value.splice(index, 1)
-  }
-}
-
-const clearAll = () => {
-  toasts.value = []
-}
-
-// Expose methods to parent components
-defineExpose({
-  addToast,
-  removeToast,
-  clearAll,
-  // Convenience methods
-  success: (title, message, options = {}) => addToast({ ...options, type: 'success', title, message }),
-  error: (title, message, options = {}) => addToast({ ...options, type: 'error', title, message }),
-  warning: (title, message, options = {}) => addToast({ ...options, type: 'warning', title, message }),
-  info: (title, message, options = {}) => addToast({ ...options, type: 'info', title, message })
-})
-
-// Listen for global toast events
+// Listen for global toast events (backward compatibility)
 const handleToastEvent = (event) => {
+  const { addToast } = useToast()
   addToast(event.detail)
 }
 
@@ -84,13 +46,16 @@ onUnmounted(() => {
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 1100;
+  z-index: 9999; /* Increase z-index to ensure it's above everything */
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
   pointer-events: none;
+  min-width: 320px; /* Ensure minimum width for proper display */
+  max-width: 480px; /* Prevent container from getting too wide */
 }
 
 .toast-container > * {
@@ -104,6 +69,8 @@ onUnmounted(() => {
     right: 0.5rem;
     left: 0.5rem;
     max-height: calc(100vh - 1rem);
+    min-width: auto;
+    max-width: none;
   }
 }
 </style>

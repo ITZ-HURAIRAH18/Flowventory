@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import inventoryService from '@/services/inventoryService'
 import orderService from '@/services/orderService'
+import { toast } from '@/composables/useToast'
 
 // UI Components
 import LoadingScreen from '@/components/LoadingScreen.vue'
@@ -102,9 +103,11 @@ const submitOrder = async () => {
       items: validItems.value
     })
     success.value = 'Order confirmed.'
+    toast.success('Order Created', `Order with ${validItems.value.length} item(s) has been created successfully.`)
     setTimeout(() => router.push('/dashboard'), 1200)
   } catch (e) {
     globalError.value = e.response?.data?.message || 'Checkout error.'
+    toast.error('Order Failed', e.response?.data?.message || 'Failed to create order. Please try again.')
   } finally {
     submitting.value = false
   }
