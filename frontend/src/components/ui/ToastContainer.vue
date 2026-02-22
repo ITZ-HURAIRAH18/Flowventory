@@ -42,35 +42,5 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.toast-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 9999; /* Increase z-index to ensure it's above everything */
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  overflow-x: hidden; /* Prevent horizontal scrolling */
-  pointer-events: none;
-  min-width: 320px; /* Ensure minimum width for proper display */
-  max-width: 480px; /* Prevent container from getting too wide */
-}
-
-.toast-container > * {
-  pointer-events: auto;
-}
-
-/* Responsive adjustments */
-@media (max-width: 640px) {
-  .toast-container {
-    top: 0.5rem;
-    right: 0.5rem;
-    left: 0.5rem;
-    max-height: calc(100vh - 1rem);
-    min-width: auto;
-    max-width: none;
-  }
-}
+@import "../../styles/ui/ToastContainer.css";
 </style>

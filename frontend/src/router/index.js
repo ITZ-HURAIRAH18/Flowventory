@@ -4,7 +4,7 @@ import { useAuth } from '@/composables/useAuth'
 import Home from '@/views/Home.vue'
 import Login from '@/views/Login.vue'
 import Dashboard from '@/views/Dashboard.vue'
-import AdminPanel from '@/views/AdminPanel.vue'
+
 
 import BranchList from '@/views/branches/BranchList.vue'
 import BranchDashboard from '@/views/branches/BranchDashboard.vue'
@@ -38,11 +38,7 @@ const routes = [
     meta: { requiresAuth: true }
   },
 
-  {
-    path: '/admin',
-    component: AdminPanel,
-    meta: { requiresAuth: true, roles: ['super_admin'] }
-  },
+  
 
   // =============================
   // Branch routes (Super Admin only)

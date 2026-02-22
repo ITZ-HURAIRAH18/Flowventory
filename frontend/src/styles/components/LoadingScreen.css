@@ -1,0 +1,375 @@
+/* ─────────────────────────────────────────────
+   SCREEN
+───────────────────────────────────────────── */
+.ls-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, #3E2723 0%, #4E342E 38%, #5D4037 68%, #6D4C41 100%);
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────
+   WRAPPER — vertical stack, no card box
+───────────────────────────────────────────── */
+.ls-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  animation: wrapperIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes wrapperIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─────────────────────────────────────────────
+   3-D SCENE  (cube + ground shadow)
+───────────────────────────────────────────── */
+.ls-scene {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  /* Extra space below for the shadow */
+  padding-bottom: 30px;
+  /* Perspective lives here so both cube and shadow share it */
+  perspective: 600px;
+}
+
+/* ── The Cube ── */
+.ls-cube {
+  width: 120px;
+  height: 120px;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: cubeRotate 3s ease-in-out infinite;
+  /* Tilt slightly so all three visible axes show */
+  transform: rotateX(-18deg) rotateY(0deg);
+}
+
+@keyframes cubeRotate {
+  0% {
+    transform: rotateX(-18deg) rotateY(0deg);
+  }
+
+  100% {
+    transform: rotateX(-18deg) rotateY(360deg);
+  }
+}
+
+/* Cube faces — size = half-size offset from centre */
+.ls-face {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+
+  /* Crisp frosted glass on every face */
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: none;
+}
+
+.ls-face .material-symbols-outlined {
+  font-size: 38px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Face colours — warm brown tints */
+.ls-front {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateZ(60px);
+}
+
+.ls-back {
+  background: rgba(255, 255, 255, 0.09);
+  transform: rotateY(180deg) translateZ(60px);
+}
+
+.ls-right {
+  background: rgba(188, 143, 120, 0.22);
+  transform: rotateY(90deg) translateZ(60px);
+}
+
+.ls-left {
+  background: rgba(188, 143, 120, 0.22);
+  transform: rotateY(-90deg) translateZ(60px);
+}
+
+.ls-top {
+  background: rgba(255, 255, 255, 0.20);
+  transform: rotateX(90deg) translateZ(60px);
+}
+
+.ls-bottom {
+  background: rgba(255, 255, 255, 0.07);
+  transform: rotateX(-90deg) translateZ(60px);
+}
+
+/* ── Rolling ground shadow ── */
+.ls-shadow {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  filter: blur(8px);
+  animation: shadowPulse 3s ease-in-out infinite;
+}
+
+@keyframes shadowPulse {
+
+  0%,
+  100% {
+    transform: translateX(-50%) scaleX(0.8);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translateX(-50%) scaleX(1.15);
+    opacity: 0.25;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   BRAND
+───────────────────────────────────────────── */
+.ls-brand {
+  animation: brandPulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes brandPulse {
+  from {
+    opacity: 0.72;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.ls-brand-text {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.03em;
+}
+
+.ls-accent {
+  color: #D7CCC8;
+}
+
+/* ─────────────────────────────────────────────
+   PROGRESS BAR
+───────────────────────────────────────────── */
+.ls-bar-track {
+  width: 220px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.ls-bar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #A1887F, #D7CCC8, #EFEBE9);
+  border-radius: 99px;
+  animation: loadBar 2.6s ease-in-out forwards;
+  box-shadow: 0 0 8px rgba(215, 204, 200, 0.55);
+}
+
+@keyframes loadBar {
+  0% {
+    width: 0%;
+  }
+
+  30% {
+    width: 35%;
+  }
+
+  60% {
+    width: 65%;
+  }
+
+  85% {
+    width: 90%;
+  }
+
+  100% {
+    width: 100%;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   STATUS ROW  (message + dots)
+───────────────────────────────────────────── */
+.ls-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ls-message {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  animation: msgFade 1.2s ease infinite alternate;
+}
+
+@keyframes msgFade {
+  from {
+    opacity: 0.38;
+  }
+
+  to {
+    opacity: 0.85;
+  }
+}
+
+.ls-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ls-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+.ls-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.ls-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   FLOATING PARTICLES
+───────────────────────────────────────────── */
+.ls-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  animation: particleFloat 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ls-p1 {
+  width: 6px;
+  height: 6px;
+  top: 18%;
+  left: 14%;
+  animation-delay: 0s;
+}
+
+.ls-p2 {
+  width: 4px;
+  height: 4px;
+  top: 72%;
+  left: 82%;
+  animation-delay: 1s;
+  background: rgba(215, 204, 200, 0.15);
+}
+
+.ls-p3 {
+  width: 8px;
+  height: 8px;
+  top: 28%;
+  right: 18%;
+  animation-delay: 2s;
+  background: rgba(161, 136, 127, 0.12);
+}
+
+.ls-p4 {
+  width: 5px;
+  height: 5px;
+  bottom: 22%;
+  left: 28%;
+  animation-delay: 0.5s;
+}
+
+.ls-p5 {
+  width: 3px;
+  height: 3px;
+  top: 52%;
+  right: 32%;
+  animation-delay: 1.5s;
+  background: rgba(239, 235, 233, 0.1);
+}
+
+.ls-p6 {
+  width: 7px;
+  height: 7px;
+  bottom: 32%;
+  right: 14%;
+  animation-delay: 2.5s;
+  background: rgba(188, 170, 164, 0.12);
+}
+
+@keyframes particleFloat {
+
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: translateY(-22px) scale(1.5);
+    opacity: 0.8;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   FADE OUT TRANSITION
+───────────────────────────────────────────── */
+.loader-fade-leave-active {
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.loader-fade-leave-to {
+  opacity: 0;
+  transform: scale(1.04);
+}
