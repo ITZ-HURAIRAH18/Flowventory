@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
+import ToastContainer from '@/components/ui/ToastContainer.vue'
 
 const route = useRoute()
 
@@ -27,6 +28,9 @@ const isHomePage = computed(() => {
     <main class="app-main" :class="{ 'with-header': showHeader, 'no-container': isLoginPage || isHomePage }">
       <router-view />
     </main>
+    
+    <!-- Global Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 

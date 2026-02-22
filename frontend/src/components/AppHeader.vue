@@ -1,22 +1,24 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import api from '@/services/api'
+import { useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
+import SignOutButton from '@/components/ui/SignOutButton.vue'
 
-const router = useRouter()
 const route = useRoute()
+const { 
+  user, 
+  userInitials, 
+  roleLabel, 
+  roleBadgeClass, 
+  navigationLinks,
+  logout
+} = useAuth()
 
-const user = ref(null)
 const mobileMenuOpen = ref(false)
 const userMenuOpen = ref(false)
 const scrolled = ref(false)
 
-// ─── Load user from localStorage ───
 onMounted(() => {
-  const stored = localStorage.getItem('user')
-  if (stored) {
-    user.value = JSON.parse(stored)
-  }
   window.addEventListener('scroll', handleScroll)
 })
 
@@ -28,92 +30,10 @@ const handleScroll = () => {
   scrolled.value = window.scrollY > 10
 }
 
-// ─── Computed: current role name ───
-const roleName = computed(() => user.value?.role?.name || '')
-
-// ─── Computed: human-readable role label ───
-const roleLabel = computed(() => {
-  const map = {
-    super_admin: 'Super Admin',
-    branch_manager: 'Branch Manager',
-    sales_user: 'Sales User'
-  }
-  return map[roleName.value] || roleName.value
-})
-
-// ─── Computed: role badge color class ───
-const roleBadgeClass = computed(() => {
-  const map = {
-    super_admin: 'badge-admin',
-    branch_manager: 'badge-manager',
-    sales_user: 'badge-sales'
-  }
-  return map[roleName.value] || ''
-})
-
-// ─── Computed: user initials for avatar ───
-const userInitials = computed(() => {
-  if (!user.value?.name) return '?'
-  return user.value.name
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-})
-
-// ─── Navigation links per role ───
-// Matches the assignment's Role Permissions table exactly:
-//   Feature           | Admin | Manager              | Sales
-//   Manage branches   | Yes   | No                   | No
-//   Manage products   | Yes   | No                   | No
-//   Manage inventory  | Yes   | Yes (own branch only) | No
-//   Create orders     | No    | Yes                  | Yes
-//   View reports      | Yes   | Yes (own branch only) | No
-const navLinks = computed(() => {
-  const links = []
-
-  // Dashboard — visible to all authenticated users
-  links.push({ label: 'Dashboard', path: '/dashboard', icon: 'dashboard' })
-
-  if (roleName.value === 'super_admin') {
-    links.push({ label: 'Branches', path: '/branches', icon: 'store' })
-    links.push({ label: 'Products', path: '/products', icon: 'inventory_2' })
-    links.push({ label: 'Users', path: '/users', icon: 'group' })
-    links.push({ label: 'Inventory', path: '/inventory', icon: 'warehouse' })
-    links.push({ label: 'Reports', path: '/reports', icon: 'bar_chart' })
-    // Note: Admin does NOT have "Create Orders" per assignment spec
-  }
-
-  if (roleName.value === 'branch_manager') {
-    links.push({ label: 'Inventory', path: '/inventory', icon: 'warehouse' })
-    links.push({ label: 'Orders', path: '/orders/create', icon: 'receipt_long' })
-    links.push({ label: 'Reports', path: '/reports', icon: 'bar_chart' })
-  }
-
-  if (roleName.value === 'sales_user') {
-    links.push({ label: 'Create Order', path: '/orders/create', icon: 'receipt_long' })
-  }
-
-  return links
-})
-
 // ─── Check if a link is active ───
 const isActive = (path) => {
   if (path === '/dashboard') return route.path === '/dashboard'
   return route.path.startsWith(path)
-}
-
-// ─── Logout ───
-const logout = async () => {
-  try {
-    await api.post('/logout')
-  } catch (e) {
-    // Ignore errors — token might be expired
-  }
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
-  router.push('/login')
 }
 
 // ─── Toggle mobile menu ───
@@ -129,6 +49,22 @@ const toggleUserMenu = () => {
 // Close user menu on click outside
 const closeUserMenu = () => {
   userMenuOpen.value = false
+}
+
+// Handle successful logout from SignOutButton
+const handleSignOutSuccess = () => {
+  userMenuOpen.value = false
+  mobileMenuOpen.value = false
+}
+
+// Emergency fallback logout for mobile
+const emergencyLogout = async () => {
+  try {
+    await logout()
+    mobileMenuOpen.value = false
+  } catch (error) {
+    console.error('Emergency logout failed:', error)
+  }
 }
 </script>
 
@@ -147,7 +83,7 @@ const closeUserMenu = () => {
       <!-- ═══ Desktop Navigation ═══ -->
       <nav class="nav-desktop">
         <router-link
-          v-for="link in navLinks"
+          v-for="link in navigationLinks"
           :key="link.path"
           :to="link.path"
           class="nav-link"
@@ -183,10 +119,14 @@ const closeUserMenu = () => {
                 </div>
               </div>
               <div class="dropdown-divider"></div>
-              <button class="dropdown-item" @click="logout">
-                <span class="material-symbols-outlined">logout</span>
-                Sign Out
-              </button>
+              <div class="dropdown-actions">
+                <SignOutButton 
+                  variant="ghost"
+                  :show-text="true"
+                  class="dropdown-signout"
+                  @signout-success="handleSignOutSuccess"
+                />
+              </div>
             </div>
           </transition>
         </div>
@@ -204,7 +144,7 @@ const closeUserMenu = () => {
     <transition name="slide">
       <div v-if="mobileMenuOpen" class="nav-mobile">
         <router-link
-          v-for="link in navLinks"
+          v-for="link in navigationLinks"
           :key="link.path"
           :to="link.path"
           class="nav-link-mobile"
@@ -217,10 +157,14 @@ const closeUserMenu = () => {
 
         <div class="mobile-divider"></div>
 
-        <button class="nav-link-mobile logout-mobile" @click="logout">
-          <span class="material-symbols-outlined">logout</span>
-          Sign Out
-        </button>
+        <div class="mobile-signout">
+          <SignOutButton 
+            variant="ghost"
+            :show-text="true"
+            class="mobile-signout-btn"
+            @signout-success="handleSignOutSuccess"
+          />
+        </div>
       </div>
     </transition>
   </header>
@@ -475,6 +419,23 @@ const closeUserMenu = () => {
   height: 1px;
   background: #EDE8E4;
   margin: 0.25rem 0;
+}
+
+.dropdown-actions {
+  padding: 0.25rem;
+}
+
+.dropdown-signout {
+  width: 100%;
+  justify-content: flex-start;
+  color: #dc2626;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+}
+
+.dropdown-signout:hover {
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .dropdown-item {
