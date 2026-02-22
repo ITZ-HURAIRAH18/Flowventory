@@ -234,5 +234,5 @@ const deleteUser = async (id, name) => {
 </template>
 
 <style scoped>
-@import "@/styles/views/UserList.css";
+@import "../../styles/views/UserList.css";
 </style>

@@ -56,9 +56,9 @@ html, body {
 }
 
 .app-main {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 2.5rem 2rem;
 }
 
 .app-main.with-header {

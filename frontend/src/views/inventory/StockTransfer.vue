@@ -179,5 +179,5 @@ onMounted(fetchOptions)
 
 
 <style scoped>
-@import "@/styles/views/StockTransfer.css";
+@import "../../styles/views/StockTransfer.css";
 </style>

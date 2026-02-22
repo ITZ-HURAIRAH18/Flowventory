@@ -137,5 +137,5 @@ onMounted(fetchManagers)
 
 
 <style scoped>
-@import "@/styles/views/BranchForm.css";
+@import "../../styles/views/BranchForm.css";
 </style>

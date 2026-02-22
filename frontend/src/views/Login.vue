@@ -147,5 +147,5 @@ const login = async () => {
 
 
 <style scoped>
-@import "@/styles/views/Login.css";
+@import "../styles/views/Login.css";
 </style>

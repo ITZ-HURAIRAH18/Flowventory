@@ -38,7 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
         $user = $request->user();
         $user->load('role');
 
-        if ($user->role->name === 'super_admin') {
+        if ($user->role->name === 'super_admin' || $user->role->name === 'sales_user') {
             return \App\Models\Branch::all();
         }
 

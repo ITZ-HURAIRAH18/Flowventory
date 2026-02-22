@@ -143,5 +143,5 @@ onMounted(fetchOptions)
 </template>
 
 <style scoped>
-@import "@/styles/views/StockAdd.css";
+@import "../../styles/views/StockAdd.css";
 </style>

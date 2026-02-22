@@ -45,13 +45,22 @@ const onBranchChange = async () => {
   }
   loadingProducts.value = true
   try {
-    const res = await inventoryService.getProductsByBranch(branch_id.value)
-    products.value = res.data.map(p => ({
-      ...p,
-      label: `${p.name} (STOCK: ${p.stock})`,
-      value: p.id,
-      disabled: p.status === 'inactive' || p.stock < 1
-    }))
+    const res = await inventoryService.getProductsByBranch(branch_id.value, 1, 100)
+    // Handle paginated response structure
+    const rawList = res.data.data || res.data || []
+    
+    products.value = (Array.isArray(rawList) ? rawList : [])
+      .filter(item => item && item.product) // Skip records with missing product data
+      .map(item => {
+        const p = item.product
+        return {
+          ...p,
+          label: `${p.name} (STOCK: ${item.quantity})`,
+          value: p.id,
+          stock: item.quantity,
+          disabled: p.status === 'inactive' || item.quantity < 1
+        }
+      })
     items.value = [{ product_id: '', quantity: 1 }]
   } catch (err) {
     globalError.value = 'Failed to sync branch inventory.'
@@ -261,5 +270,5 @@ onMounted(fetchBranches)
 </template>
 
 <style scoped>
-@import "@/styles/views/OrderCreate.css";
+@import "../../styles/views/OrderCreate.css";
 </style>

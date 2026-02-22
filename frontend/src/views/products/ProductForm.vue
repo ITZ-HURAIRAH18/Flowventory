@@ -184,5 +184,5 @@ const submitForm = async () => {
 </template>
 
 <style scoped>
-@import "@/styles/views/ProductForm.css";
+@import "../../styles/views/ProductForm.css";
 </style>

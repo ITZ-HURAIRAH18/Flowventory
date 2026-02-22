@@ -195,7 +195,7 @@ onMounted(fetchRoles)
 </template>
 
 <style scoped>
-@import "@/styles/views/UserForm.css";
+@import "../../styles/views/UserForm.css";
 </style>
 
 
