@@ -1,25 +1,36 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import userService from '@/services/userService'
 import UserForm from './UserForm.vue'
 import LoadingScreen from '@/components/LoadingScreen.vue'
 
 const users       = ref([])
+const pagination  = ref({})
 const loading     = ref(true)
 const error       = ref('')
 const search      = ref('')
 const roleFilter  = ref('')
+const currentPage = ref(1)
+const perPage     = ref(8)
 const showModal   = ref(false)
 const editTarget  = ref(null)
 const deletingId  = ref(null)
 
 /* ── fetch ── */
-const fetchUsers = async () => {
+const fetchUsers = async (page = 1) => {
   loading.value = true
   error.value   = ''
   try {
-    const res = await userService.getAll()
+    const params = {
+      page,
+      per_page: perPage.value,
+      search: search.value || undefined,
+      role: roleFilter.value || undefined
+    }
+    const res = await userService.getAll(params)
     users.value = res.data.data ?? res.data
+    pagination.value = res.data
+    currentPage.value = page
   } catch {
     error.value = 'Failed to load user list. Please try again.'
   } finally {
@@ -27,32 +38,50 @@ const fetchUsers = async () => {
   }
 }
 
-onMounted(fetchUsers)
+onMounted(() => fetchUsers(1))
+
+// Watch for search and filter changes and reset to page 1
+watch([search, roleFilter], () => {
+  currentPage.value = 1
+  fetchUsers(1)
+}, { deep: true })
 
 /* ── filters ── */
 const filtered = computed(() => {
-  let list = users.value
-  const q = search.value.toLowerCase()
-  
-  if (q) {
-    list = list.filter(u => 
-      u.name.toLowerCase().includes(q) || 
-      u.email.toLowerCase().includes(q)
-    )
-  }
-  
-  if (roleFilter.value) {
-    list = list.filter(u => (u.role?.name || u.role) === roleFilter.value)
-  }
-  
-  return list
+  // Since we're doing server-side filtering, just return the users from API
+  return users.value
 })
 
+/* ── pagination helpers ── */
+const totalPages = computed(() => pagination.value.last_page || 1)
+const hasNextPage = computed(() => currentPage.value < totalPages.value)
+const hasPrevPage = computed(() => currentPage.value > 1)
+const startItem = computed(() => pagination.value.from || 0)
+const endItem = computed(() => pagination.value.to || 0)
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
+    fetchUsers(page)
+  }
+}
+
+const nextPage = () => {
+  if (hasNextPage.value) {
+    goToPage(currentPage.value + 1)
+  }
+}
+
+const prevPage = () => {
+  if (hasPrevPage.value) {
+    goToPage(currentPage.value - 1)
+  }
+}
+
 /* ── stats ── */
-const totalCount   = computed(() => users.value.length)
-const adminCount   = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'super_admin').length)
-const managerCount = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'branch_manager').length)
-const salesCount   = computed(() => users.value.filter(u => (u.role?.name || u.role) === 'sales_user').length)
+const totalCount   = computed(() => pagination.value.total || users.value.length)
+const adminCount   = computed(() => pagination.value.role_counts?.super_admin || 0)
+const managerCount = computed(() => pagination.value.role_counts?.branch_manager || 0)
+const salesCount   = computed(() => pagination.value.role_counts?.sales_user || 0)
 
 /* ── helpers ── */
 const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -68,7 +97,7 @@ const onSaved    = () => {
   // Don't refresh immediately - let the toast be visible
   setTimeout(() => {
     showModal.value = false; 
-    fetchUsers();
+    fetchUsers(currentPage.value);
   }, 100)
 }
 const onClose    = () => { showModal.value = false }
@@ -78,7 +107,10 @@ const deleteUser = async (id, name) => {
   deletingId.value = id
   try {
     await userService.delete(id)
-    users.value = users.value.filter(u => u.id !== id)
+    // If we're on the last page and delete the last item, go to previous page
+    const shouldGoToPrevPage = users.value.length === 1 && currentPage.value > 1
+    const targetPage = shouldGoToPrevPage ? currentPage.value - 1 : currentPage.value
+    fetchUsers(targetPage)
   } catch {
     alert('Failed to delete user.')
   } finally {
@@ -172,53 +204,105 @@ const deleteUser = async (id, name) => {
     <div v-else-if="filtered.length === 0" class="ul-empty">
       <span class="material-symbols-outlined ul-empty-icon">person_off</span>
       <p class="ul-empty-title">{{ search || roleFilter ? 'No matching users found' : 'No users registered' }}</p>
-      <p class="ul-empty-sub">Try Adjusting your search or filters to find what you're looking for.</p>
+      <p class="ul-empty-sub">Try adjusting your search or filters to find what you're looking for.</p>
     </div>
 
-    <!-- ══════ CARDS GRID ══════ -->
-    <div v-else class="ul-grid">
-      <div
-        v-for="(user, i) in filtered"
-        :key="user.id"
-        class="user-card"
-        :style="{ animationDelay: `${i * 0.05}s` }"
-      >
-        <div class="uc-body">
-          <div class="uc-top">
-            <div class="uc-avatar">
-              {{ initials(user.name) }}
+    <!-- ══════ CONTENT WITH PAGINATION ══════ -->
+    <div v-else>
+      <!-- ══════ CARDS GRID ══════ -->
+      <div class="ul-grid">
+        <div
+          v-for="(user, i) in filtered"
+          :key="user.id"
+          class="user-card"
+          :style="{ animationDelay: `${i * 0.05}s` }"
+        >
+          <div class="uc-body">
+            <div class="uc-top">
+              <div class="uc-avatar">
+                {{ initials(user.name) }}
+              </div>
+              <div class="uc-info">
+                <h3 class="uc-name">{{ user.name }}</h3>
+                <p class="uc-email">{{ user.email }}</p>
+              </div>
             </div>
-            <div class="uc-info">
-              <h3 class="uc-name">{{ user.name }}</h3>
-              <p class="uc-email">{{ user.email }}</p>
+            
+            <div class="uc-meta">
+              <div class="uc-role-tag" :class="user.role?.name || user.role">
+                <span class="material-symbols-outlined">verified_user</span>
+                {{ roleLabel(user.role?.name || user.role) }}
+              </div>
+              <div class="uc-date">
+                Joined {{ new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) }}
+              </div>
+            </div>
+
+            <div class="uc-actions">
+              <button class="uc-btn-edit" @click="openEdit(user)">
+                <span class="material-symbols-outlined">edit</span>
+                Edit Profile
+              </button>
+              <button
+                class="uc-btn-del"
+                @click="deleteUser(user.id, user.name)"
+                :disabled="deletingId === user.id"
+              >
+                <span class="material-symbols-outlined">
+                  {{ deletingId === user.id ? 'hourglass_empty' : 'delete' }}
+                </span>
+              </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ══════ PAGINATION ══════ -->
+      <div v-if="totalPages > 1" class="ul-pagination">
+        <div class="pagination-info">
+          Showing {{ startItem }} to {{ endItem }} of {{ totalCount }} users
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="pagination-btn" 
+            :class="{ disabled: !hasPrevPage }"
+            @click="prevPage"
+            :disabled="!hasPrevPage"
+          >
+            <span class="material-symbols-outlined">chevron_left</span>
+            Previous
+          </button>
           
-          <div class="uc-meta">
-            <div class="uc-role-tag" :class="user.role?.name || user.role">
-              <span class="material-symbols-outlined">verified_user</span>
-              {{ roleLabel(user.role?.name || user.role) }}
-            </div>
-            <div class="uc-date">
-              Joined {{ new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) }}
-            </div>
+          <div class="pagination-pages">
+            <template v-for="page in Math.min(5, totalPages)" :key="page">
+              <button 
+                v-if="page <= totalPages"
+                class="pagination-page" 
+                :class="{ active: page === currentPage }"
+                @click="goToPage(page)"
+              >
+                {{ page }}
+              </button>
+            </template>
+            <span v-if="totalPages > 5" class="pagination-ellipsis">...</span>
+            <button 
+              v-if="totalPages > 5 && currentPage < totalPages - 2"
+              class="pagination-page" 
+              @click="goToPage(totalPages)"
+            >
+              {{ totalPages }}
+            </button>
           </div>
 
-          <div class="uc-actions">
-            <button class="uc-btn-edit" @click="openEdit(user)">
-              <span class="material-symbols-outlined">edit</span>
-              Edit Profile
-            </button>
-            <button
-              class="uc-btn-del"
-              @click="deleteUser(user.id, user.name)"
-              :disabled="deletingId === user.id"
-            >
-              <span class="material-symbols-outlined">
-                {{ deletingId === user.id ? 'hourglass_empty' : 'delete' }}
-              </span>
-            </button>
-          </div>
+          <button 
+            class="pagination-btn" 
+            :class="{ disabled: !hasNextPage }"
+            @click="nextPage"
+            :disabled="!hasNextPage"
+          >
+            Next
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
         </div>
       </div>
     </div>

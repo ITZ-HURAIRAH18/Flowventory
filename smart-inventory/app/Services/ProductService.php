@@ -6,9 +6,9 @@ use App\Models\Product;
 
 class ProductService
 {
-    public function list($search = null, $status = null)
+    public function list($search = null, $status = null, $perPage = null)
     {
-        return Product::when($search, function ($query) use ($search) {
+        $query = Product::when($search, function ($query) use ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
                   ->orWhere('sku', 'like', "%$search%");
@@ -17,8 +17,14 @@ class ProductService
         ->when($status, function ($query) use ($status) {
             $query->where('status', $status);
         })
-        ->latest()
-        ->paginate(10);
+        ->latest();
+
+        // If perPage is provided, use pagination, otherwise return all
+        if ($perPage) {
+            return $query->paginate($perPage);
+        } else {
+            return $query->get();
+        }
     }
 
     public function create(array $data)

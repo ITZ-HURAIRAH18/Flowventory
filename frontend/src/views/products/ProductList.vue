@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import productService from '@/services/productService'
 import { toast } from '@/composables/useToast'
 import ProductForm from './ProductForm.vue'
@@ -13,13 +13,20 @@ const showModal   = ref(false)
 const editTarget  = ref(null)   // null = create, object = edit
 const deletingId  = ref(null)
 
+const currentPage = ref(1)
+const totalPages  = ref(1)
+const totalItems  = ref(0)
+
 /* ── fetch ── */
 const fetchProducts = async () => {
   loading.value = true
   error.value   = ''
   try {
-    const res = await productService.getAll()
+    const params = { page: currentPage.value, per_page: 8, search: search.value }
+    const res = await productService.getAll(params)
     products.value = res.data.data ?? res.data
+    totalPages.value = res.data.last_page || 1
+    totalItems.value = res.data.total || 0
   } catch {
     error.value = 'Failed to load products. Please try again.'
   } finally {
@@ -29,19 +36,19 @@ const fetchProducts = async () => {
 
 onMounted(fetchProducts)
 
-/* ── filtered list ── */
-const filtered = computed(() => {
-  const q = search.value.toLowerCase()
-  return products.value.filter(p =>
-    p.name.toLowerCase().includes(q) ||
-    (p.sku || '').toLowerCase().includes(q)
-  )
+/* ── search ── */
+let searchTimeout = null
+watch(search, () => {
+  currentPage.value = 1
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(fetchProducts, 300)
 })
 
+
 /* ── stats ── */
-const totalProducts  = computed(() => products.value.length)
-const activeCount    = computed(() => products.value.filter(p => p.status === 'active').length)
-const inactiveCount  = computed(() => totalProducts.value - activeCount.value)
+const totalProducts  = computed(() => totalItems.value)
+const activeCount    = computed(() => products.value.filter(p => p.status === 'active').length) // Inaccurate with pagination
+const inactiveCount  = computed(() => totalProducts.value - activeCount.value) // Inaccurate with pagination
 
 /* ── actions ── */
 const openCreate = () => { editTarget.value = null; showModal.value = true }
@@ -61,13 +68,20 @@ const deleteProduct = async (id) => {
   const product = products.value.find(p => p.id === id)
   try {
     await productService.delete(id)
-    products.value = products.value.filter(p => p.id !== id)
     toast.success('Product Deleted', `${product?.name || 'Product'} has been deleted successfully.`)
+    // Refetch after delete
+    fetchProducts()
   } catch {
     toast.error('Delete Failed', 'Failed to delete product. Please try again.')
   } finally {
     deletingId.value = null
   }
+}
+
+const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  fetchProducts()
 }
 
 /* ── helpers ── */
@@ -131,7 +145,7 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
         </button>
       </div>
       <span class="result-count" v-if="!loading">
-        {{ filtered.length }} product{{ filtered.length !== 1 ? 's' : '' }} found
+        {{ totalItems }} product{{ totalItems !== 1 ? 's' : '' }} found
       </span>
     </div>
 
@@ -151,7 +165,7 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
     </div>
 
     <!-- ══════ EMPTY ══════ -->
-    <div v-else-if="filtered.length === 0" class="pl-empty">
+    <div v-else-if="products.length === 0" class="pl-empty">
       <span class="material-symbols-outlined pl-empty-icon">inventory</span>
       <p class="pl-empty-title">{{ search ? 'No results found' : 'No products cataloged' }}</p>
       <p class="pl-empty-sub">{{ search ? 'Try checking your spelling or use different terms.' : 'Start building your catalog by adding products.' }}</p>
@@ -164,7 +178,7 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
     <!-- ══════ PRODUCT CARDS ══════ -->
     <div v-else class="pl-grid">
       <div
-        v-for="(product, i) in filtered"
+        v-for="(product, i) in products"
         :key="product.id"
         class="product-card"
         :style="{ animationDelay: `${i * 0.05}s` }"
@@ -185,28 +199,19 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
                 {{ product.sku || '---' }}
               </p>
             </div>
+          </div>
+
+          <!-- Price & Status -->
+          <div class="pc-details">
+            <div class="pc-price">
+              <span class="pc-price-label">Price</span>
+              <span class="pc-price-value">PKR {{ formatPrice(product.sale_price) }}</span>
+            </div>
             <div class="pc-status" :class="product.status">
               {{ product.status }}
             </div>
           </div>
 
-          <!-- Price Row -->
-          <div class="pc-financials">
-            <div class="fin-item">
-              <span class="fin-label">Cost</span>
-              <span class="fin-val">PKR {{ formatPrice(product.cost_price) }}</span>
-            </div>
-            <div class="fin-divider"></div>
-            <div class="fin-item highlight">
-              <span class="fin-label">Sale</span>
-              <span class="fin-val">PKR {{ formatPrice(product.sale_price) }}</span>
-            </div>
-            <div class="fin-divider"></div>
-            <div class="fin-item">
-              <span class="fin-label">Tax</span>
-              <span class="fin-val">{{ formatPrice(product.tax_percentage) }}%</span>
-            </div>
-          </div>
 
           <!-- Action buttons -->
           <div class="pc-actions">
@@ -226,6 +231,17 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ══════ PAGINATION ══════ -->
+    <div v-if="totalPages > 1" class="pagination">
+      <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="page-btn">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="page-btn">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
     </div>
 
     <!-- ══════ MODAL ══════ -->
@@ -413,7 +429,7 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
 ════════════════════════════════ */
 .pl-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.25rem;
 }
 
@@ -448,22 +464,22 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
 
 /* top row */
 .pc-top {
-  display: flex; align-items: center; gap: 1rem;
+  display: flex; align-items: flex-start; gap: 1rem;
   margin-bottom: 1rem;
 }
 .pc-avatar {
-  width: 42px; height: 42px; border-radius: 12px;
+  width: 46px; height: 46px; border-radius: 12px;
   background: linear-gradient(135deg, #5D4037, #8D6E63);
-  color: #fff; font-size: 0.85rem; font-weight: 800;
+  color: #fff; font-size: 0.9rem; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 0; letter-spacing: 0.02em;
 }
 .pc-avatar.inactive-avatar {
   background: #9CA3AF;
 }
 .pc-info { flex: 1; min-width: 0; }
 .pc-name {
-  font-size: 1.05rem; font-weight: 800; color: #3E2723;
+  font-size: 1rem; font-weight: 700; color: #3E2723;
   margin: 0 0 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pc-sku {
@@ -473,27 +489,36 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
 }
 .pc-sku .material-symbols-outlined { font-size: 14px; }
 
+.pc-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #FAF8F6;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1.1rem;
+}
+.pc-price-label {
+  font-size: 0.7rem;
+  color: #A1887F;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 0.1rem;
+}
+.pc-price-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #3E2723;
+}
+
 .pc-status {
-  font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
-  padding: 0.22rem 0.55rem; border-radius: 6px;
+  font-size: 0.65rem; font-weight: 800; text-transform: uppercase;
+  padding: 0.25rem 0.6rem; border-radius: 7px;
   letter-spacing: 0.05em; flex-shrink: 0;
 }
 .pc-status.active { background: #DCFCE7; color: #166534; }
 .pc-status.inactive { background: #F3F4F6; color: #4B5563; }
 
-/* financials */
-.pc-financials {
-  display: flex; align-items: center;
-  background: #FAF8F6;
-  border-radius: 12px;
-  padding: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-.fin-item { flex: 1; display: flex; flex-direction: column; align-items: center; }
-.fin-label { font-size: 0.65rem; color: #A1887F; font-weight: 600; text-transform: uppercase; margin-bottom: 0.15rem; }
-.fin-val { font-size: 0.9rem; font-weight: 700; color: #5D4037; }
-.fin-item.highlight .fin-val { color: #8D6E63; }
-.fin-divider { width: 1px; height: 24px; background: #EDE8E4; }
 
 /* action row */
 .pc-actions {
@@ -547,6 +572,44 @@ const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUp
 .modal-fade-leave-active { transition: opacity 0.25s ease; }
 .modal-fade-enter-from,
 .modal-fade-leave-to     { opacity: 0; }
+
+/* ════════════════════════════════
+   PAGINATION
+════════════════════════════════ */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+  gap: 0.5rem;
+}
+.page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid #D7CCC8;
+  background: #fff;
+  color: #795548;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.page-btn:hover:not(:disabled) {
+  background: #F5F1EE;
+  border-color: #A1887F;
+}
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.page-info {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5D4037;
+  padding: 0 0.5rem;
+}
 
 /* ════════════════════════════════
    RESPONSIVE

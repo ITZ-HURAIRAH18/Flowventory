@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 
 import Home from '@/views/Home.vue'
 import Login from '@/views/Login.vue'
@@ -171,6 +172,12 @@ router.beforeEach((to, from, next) => {
   const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null
   const isAuthenticated = token && token !== 'null' && token !== 'undefined'
 
+  // Refresh auth state to ensure composable is in sync
+  if (isAuthenticated) {
+    const { refreshAuth } = useAuth()
+    refreshAuth()
+  }
+
   // 1. If logged in and trying to access Home or Login, go to Dashboard
   if (isAuthenticated && (to.path === '/' || to.path === '/login')) {
     return next('/dashboard')
@@ -181,6 +188,8 @@ router.beforeEach((to, from, next) => {
     // Clear potentially corrupted token strings
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    const { clearAuth } = useAuth()
+    clearAuth()
     return next('/login')
   }
 

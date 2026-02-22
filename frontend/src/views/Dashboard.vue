@@ -26,6 +26,120 @@ const inventoryStats = ref({
   total_skus: 0
 })
 
+/* ── pagination for stock positions ── */
+const stockCurrentPage = ref(1)
+const stockItemsPerPage = 5
+const stockTotalItems = ref(0) // Total items from server
+const inventoryLoading = ref(false) // Loading state for pagination
+
+/* ── computed for pagination ── */
+const totalStockPages = computed(() => {
+  return Math.ceil(stockTotalItems.value / stockItemsPerPage)
+})
+
+const hasStockPrevPage = computed(() => stockCurrentPage.value > 1)
+const hasStockNextPage = computed(() => stockCurrentPage.value < totalStockPages.value)
+
+/* ── fetch inventory with pagination ── */
+const fetchInventory = async (page = 1) => {
+  inventoryLoading.value = true
+  try {
+    console.log('Fetching inventory page:', page)
+    const response = await inventoryService.getAll(page, stockItemsPerPage)
+    console.log('Inventory API response:', response)
+    
+    const data = response.data
+    
+    // Handle both paginated and non-paginated responses
+    if (data.data) {
+      // Paginated response
+      inventory.value = data.data
+      stockTotalItems.value = data.total || 0
+      stockCurrentPage.value = data.current_page || page
+      console.log('Paginated response - Inventory set to:', inventory.value.length, 'items')
+    } else if (Array.isArray(data)) {
+      // Direct array response
+      inventory.value = data.slice(0, stockItemsPerPage)
+      stockTotalItems.value = data.length
+      stockCurrentPage.value = page
+      console.log('Array response - Inventory set to:', inventory.value.length, 'items')
+    } else {
+      // Unexpected response structure
+      console.warn('Unexpected inventory response structure:', data)
+      inventory.value = []
+      stockTotalItems.value = 0
+    }
+    
+    // If no inventory data and this is not page 1, try fallback
+    if (inventory.value.length === 0 && page > 1) {
+      console.log('No data on page', page, 'trying fallback to fetch all and slice')
+      // Fallback: fetch all inventory data and slice client-side
+      const fallbackResponse = await inventoryService.getAll()
+      const allData = fallbackResponse.data?.data || fallbackResponse.data || []
+      
+      if (Array.isArray(allData) && allData.length > 0) {
+        const startIndex = (page - 1) * stockItemsPerPage
+        const endIndex = startIndex + stockItemsPerPage
+        inventory.value = allData.slice(startIndex, endIndex)
+        stockTotalItems.value = allData.length
+        stockCurrentPage.value = page
+        console.log('Fallback success - Inventory set to:', inventory.value.length, 'items from total', allData.length)
+      }
+    }
+    
+    console.log('Final inventory state:', inventory.value)
+    console.log('Total items:', stockTotalItems.value)
+    console.log('Current page:', stockCurrentPage.value)
+    
+  } catch (error) {
+    console.error('Failed to fetch inventory:', error)
+    
+    // Final fallback - try to get all data without pagination
+    try {
+      console.log('Attempting final fallback for inventory')
+      const fallbackResponse = await inventoryService.getAll()
+      const allData = fallbackResponse.data?.data || fallbackResponse.data || []
+      
+      if (Array.isArray(allData) && allData.length > 0) {
+        const startIndex = (page - 1) * stockItemsPerPage
+        const endIndex = startIndex + stockItemsPerPage
+        inventory.value = allData.slice(startIndex, endIndex)
+        stockTotalItems.value = allData.length
+        stockCurrentPage.value = page
+        console.log('Final fallback success - Inventory set to:', inventory.value.length, 'items')
+      } else {
+        inventory.value = []
+        stockTotalItems.value = 0
+      }
+    } catch (fallbackError) {
+      console.error('All fallback attempts failed:', fallbackError)
+      inventory.value = []
+      stockTotalItems.value = 0
+    }
+  } finally {
+    inventoryLoading.value = false
+  }
+}
+
+/* ── pagination handlers ── */
+const goToStockPage = async (page) => {
+  if (page >= 1 && page <= totalStockPages.value) {
+    await fetchInventory(page)
+  }
+}
+
+const prevStockPage = async () => {
+  if (hasStockPrevPage.value) {
+    await fetchInventory(stockCurrentPage.value - 1)
+  }
+}
+
+const nextStockPage = async () => {
+  if (hasStockNextPage.value) {
+    await fetchInventory(stockCurrentPage.value + 1)
+  }
+}
+
 /* ── derived KPIs ── */
 const totalBranches  = computed(() => branches.value.length)
 const managedBranches = computed(() => branches.value.filter(b => b.manager).length)
@@ -74,22 +188,32 @@ const fetchData = async () => {
     const tasks = []
     // Sales users don't need these analytics for now
     if (isSuperAdmin.value || isBranchManager.value) {
-      tasks.push(branchService.getAll().then(r  => { branches.value  = r.data.data ?? r.data }))
-      tasks.push(productService.getAll().then(r  => { products.value  = r.data.data ?? r.data }))
-      tasks.push(inventoryService.getAll().then(r => { 
-        // Handle paginated response
-        const data = r.data
-        inventory.value = data.data ?? data
-        // Store total for KPI calculation
-        inventoryTotal.value = data.total ?? 0
-      }))
+      console.log('User role detected:', roleName.value)
+      
+      if (isSuperAdmin.value) {
+        tasks.push(branchService.getAll().then(r  => { branches.value  = r.data.data ?? r.data }))
+        tasks.push(productService.getAll().then(r  => { products.value  = r.data.data ?? r.data }))
+      } else {
+        tasks.push(api.get('/all-branches').then(r  => { branches.value  = r.data.data ?? r.data }))
+        tasks.push(api.get('/all-products').then(r  => { products.value  = r.data.data ?? r.data }))
+      }
+      
+      // Fetch only the first page of inventory (5 items)
+      tasks.push(fetchInventory(1))
+      
       // Get inventory statistics (total volume, low stock count, etc.)
       tasks.push(inventoryService.getStats().then(r => { 
         inventoryStats.value = r.data
       }))
+    } else {
+      console.log('User role not authorized for inventory data:', roleName.value)
     }
+    
     await Promise.all(tasks)
-  } catch {
+    console.log('All data fetched. Final inventory:', inventory.value)
+    
+  } catch (err) {
+    console.error('Error fetching dashboard data:', err)
     error.value = 'Operational data synchronized partially.'
   } finally {
     loading.value = false
@@ -224,12 +348,17 @@ onMounted(() => {
           <router-link to="/inventory" class="card-head-link">Advanced View</router-link>
         </div>
 
-        <div v-if="inventory.length === 0" class="ov-empty">
+        <div v-if="inventory.length === 0 && !inventoryLoading" class="ov-empty">
           <span class="material-symbols-outlined">info</span>
           <p>No inventory records found for your permissions.</p>
         </div>
 
-        <div v-else class="ov-table-wrap">
+        <div v-if="inventoryLoading" class="ov-loading">
+          <span class="material-symbols-outlined loading-spinner">hourglass_empty</span>
+          <p>Loading inventory data...</p>
+        </div>
+
+        <div v-else-if="inventory.length > 0" class="ov-table-wrap">
           <table class="ov-table">
             <thead>
               <tr>
@@ -240,7 +369,7 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in inventory.slice(0, 8)" :key="item.id">
+              <tr v-for="item in inventory" :key="item.id">
                 <td class="ov-td-product">
                   <span class="ov-dot" :class="(item.quantity ?? item.stock ?? 0) <= 5 ? 'dot-red' : (item.quantity ?? item.stock ?? 0) <= 20 ? 'dot-amber' : 'dot-brown'"></span>
                   {{ item.product?.name ?? '—' }}
@@ -255,6 +384,43 @@ onMounted(() => {
               </tr>
             </tbody>
           </table>
+
+          <!-- Pagination Controls -->
+          <div v-if="totalStockPages > 1" class="ov-pagination">
+            <div class="pagination-info">
+              <span>Page {{ stockCurrentPage }} of {{ totalStockPages }}</span>
+              <span class="pagination-total">({{ stockTotalItems }} items)</span>
+            </div>
+            <div class="pagination-controls">
+              <button 
+                class="pagination-btn" 
+                :disabled="!hasStockPrevPage"
+                @click="prevStockPage"
+                aria-label="Previous page"
+              >
+                <span class="material-symbols-outlined">chevron_left</span>
+              </button>
+              
+              <button 
+                v-for="page in Math.min(totalStockPages, 5)" 
+                :key="page"
+                class="pagination-btn pagination-page"
+                :class="{ active: page === stockCurrentPage }"
+                @click="goToStockPage(page)"
+              >
+                {{ page }}
+              </button>
+              
+              <button 
+                class="pagination-btn"
+                :disabled="!hasStockNextPage"
+                @click="nextStockPage"
+                aria-label="Next page"
+              >
+                <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -389,8 +555,103 @@ onMounted(() => {
 .s-alert { background: #FEF2F2; color: #EF4444; }
 .s-ok { background: #ECFDF5; color: #10B981; }
 
+/* Pagination Styles */
+.ov-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #F0EDE9;
+}
+
+.pagination-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #8D6E63;
+  font-weight: 600;
+}
+
+.pagination-total {
+  font-size: 0.72rem;
+  color: #A1887F;
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.pagination-btn {
+  background: #fff;
+  border: 1.5px solid #E0D7D0;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #8D6E63;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: #8D6E63;
+  background: #FAF9F7;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-btn.pagination-page.active {
+  background: #8D6E63;
+  color: #fff;
+  border-color: #8D6E63;
+}
+
+.pagination-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.ov-empty {
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  padding: 3rem; color: #A1887F; font-size: 0.95rem; font-weight: 500;
+}
+.ov-empty .material-symbols-outlined { font-size: 28px; }
+
+.ov-loading {
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  padding: 2rem; color: #8D6E63; font-size: 0.92rem; font-weight: 500;
+}
+.loading-spinner {
+  animation: loading-spin 2s linear infinite;
+  color: #6D4C41;
+}
+@keyframes loading-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 768px) {
   .kpi-grid { grid-template-columns: 1fr; }
   .sw-actions { flex-direction: column; }
+  
+  .ov-pagination {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .pagination-controls {
+    justify-content: center;
+  }
 }
 </style>

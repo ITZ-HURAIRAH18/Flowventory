@@ -9,9 +9,31 @@ use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $branches = Branch::with('manager')->paginate(10);
+        $query = Branch::with('manager');
+
+        // Handle search
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('address', 'like', "%{$search}%")
+                  ->orWhereHas('manager', function($managerQuery) use ($search) {
+                      $managerQuery->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        // If per_page is specified, use pagination, otherwise return all
+        $perPage = $request->get('per_page');
+        
+        if ($perPage) {
+            $branches = $query->paginate($perPage);
+        } else {
+            $branches = $query->get();
+        }
+        
         return response()->json($branches);
     }
 

@@ -11,9 +11,9 @@ class UserService
     /**
      * List users with optional search & role filter.
      */
-    public function list($search = null, $roleFilter = null)
+    public function list($search = null, $roleFilter = null, $perPage = 8)
     {
-        return User::with('role')
+        $query = User::with('role')
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%$search%")
@@ -25,8 +25,32 @@ class UserService
                     $q->where('name', $roleFilter);
                 });
             })
-            ->latest()
-            ->paginate(10);
+            ->latest();
+
+        $paginatedData = $query->paginate($perPage);
+        
+        // Get role counts for stats (without pagination filters)
+        $roleCounts = User::join('roles', 'users.role_id', '=', 'roles.id')
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('users.name', 'like', "%$search%")
+                      ->orWhere('users.email', 'like', "%$search%");
+                });
+            })
+            ->selectRaw('roles.name, count(*) as count')
+            ->groupBy('roles.name')
+            ->pluck('count', 'name')
+            ->toArray();
+
+        // Add role counts to pagination data
+        $paginatedData = $paginatedData->toArray();
+        $paginatedData['role_counts'] = [
+            'super_admin' => $roleCounts['super_admin'] ?? 0,
+            'branch_manager' => $roleCounts['branch_manager'] ?? 0,
+            'sales_user' => $roleCounts['sales_user'] ?? 0,
+        ];
+
+        return $paginatedData;
     }
 
     /**

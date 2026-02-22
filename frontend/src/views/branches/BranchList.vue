@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import branchService from '@/services/branchService'
 import BranchForm from './BranchForm.vue'
@@ -15,13 +15,20 @@ const showModal   = ref(false)
 const editTarget  = ref(null)   // null = create, object = edit
 const deletingId  = ref(null)
 
+const currentPage = ref(1)
+const totalPages  = ref(1)
+const totalItems  = ref(0)
+
 /* ── fetch ── */
 const fetchBranches = async () => {
   loading.value = true
   error.value   = ''
   try {
-    const res = await branchService.getAll()
+    const params = { page: currentPage.value, per_page: 8, search: search.value }
+    const res = await branchService.getAll(params)
     branches.value = res.data.data ?? res.data
+    totalPages.value = res.data.last_page || 1
+    totalItems.value = res.data.total || 0
   } catch {
     error.value = 'Failed to load branches. Please try again.'
   } finally {
@@ -31,20 +38,18 @@ const fetchBranches = async () => {
 
 onMounted(fetchBranches)
 
-/* ── filtered list ── */
-const filtered = computed(() => {
-  const q = search.value.toLowerCase()
-  return branches.value.filter(b =>
-    b.name.toLowerCase().includes(q) ||
-    (b.address || '').toLowerCase().includes(q) ||
-    (b.manager?.name || '').toLowerCase().includes(q)
-  )
+/* ── search ── */
+let searchTimeout = null
+watch(search, () => {
+  currentPage.value = 1
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(fetchBranches, 300)
 })
 
 /* ── stats ── */
-const totalBranches  = computed(() => branches.value.length)
-const managedCount   = computed(() => branches.value.filter(b => b.manager).length)
-const unmanagedCount = computed(() => totalBranches.value - managedCount.value)
+const totalBranches  = computed(() => totalItems.value)
+const managedCount   = computed(() => branches.value.filter(b => b.manager).length) // This will be inaccurate with pagination
+const unmanagedCount = computed(() => totalBranches.value - managedCount.value) // This will be inaccurate with pagination
 
 /* ── actions ── */
 const openCreate = () => { editTarget.value = null; showModal.value = true }
@@ -63,7 +68,8 @@ const deleteBranch = async (id) => {
   deletingId.value = id
   try {
     await branchService.delete(id)
-    branches.value = branches.value.filter(b => b.id !== id)
+    // Refetch current page after deletion
+    fetchBranches()
   } catch {
     alert('Failed to delete branch.')
   } finally {
@@ -72,6 +78,12 @@ const deleteBranch = async (id) => {
 }
 
 const viewBranch = (id) => router.push(`/branches/${id}`)
+
+const changePage = (page) => {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  fetchBranches()
+}
 
 /* ── initials avatar ── */
 const initials = (name) =>
@@ -134,7 +146,7 @@ const initials = (name) =>
         </button>
       </div>
       <span class="result-count" v-if="!loading">
-        {{ filtered.length }} result{{ filtered.length !== 1 ? 's' : '' }}
+        {{ totalItems }} result{{ totalItems !== 1 ? 's' : '' }}
       </span>
     </div>
 
@@ -154,7 +166,7 @@ const initials = (name) =>
     </div>
 
     <!-- ══════ EMPTY ══════ -->
-    <div v-else-if="filtered.length === 0" class="bl-empty">
+    <div v-else-if="branches.length === 0" class="bl-empty">
       <span class="material-symbols-outlined bl-empty-icon">store_mall_directory</span>
       <p class="bl-empty-title">{{ search ? 'No results found' : 'No branches yet' }}</p>
       <p class="bl-empty-sub">{{ search ? 'Try a different search term.' : 'Add your first branch to get started.' }}</p>
@@ -167,7 +179,7 @@ const initials = (name) =>
     <!-- ══════ BRANCH CARDS ══════ -->
     <div v-else class="bl-grid">
       <div
-        v-for="(branch, i) in filtered"
+        v-for="(branch, i) in branches"
         :key="branch.id"
         class="branch-card"
         :style="{ animationDelay: `${i * 0.06}s` }"
@@ -225,6 +237,17 @@ const initials = (name) =>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ══════ PAGINATION ══════ -->
+    <div v-if="totalPages > 1" class="pagination">
+      <button @click="changePage(currentPage - 1)" :disabled="currentPage === 1" class="page-btn">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <span class="page-info">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button @click="changePage(currentPage + 1)" :disabled="currentPage === totalPages" class="page-btn">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
     </div>
 
     <!-- ══════ MODAL ══════ -->
@@ -561,6 +584,44 @@ const initials = (name) =>
 .modal-fade-leave-active { transition: opacity 0.25s ease; }
 .modal-fade-enter-from,
 .modal-fade-leave-to     { opacity: 0; }
+
+/* ════════════════════════════════
+   PAGINATION
+════════════════════════════════ */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+  gap: 0.5rem;
+}
+.page-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid #D7CCC8;
+  background: #fff;
+  color: #795548;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.page-btn:hover:not(:disabled) {
+  background: #F5F1EE;
+  border-color: #A1887F;
+}
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.page-info {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5D4037;
+  padding: 0 0.5rem;
+}
 
 /* ════════════════════════════════
    RESPONSIVE

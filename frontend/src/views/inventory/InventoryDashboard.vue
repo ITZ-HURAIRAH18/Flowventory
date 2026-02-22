@@ -8,9 +8,11 @@ const loading   = ref(true)
 const error     = ref('')
 const search    = ref('')
 const currentPage = ref(1)
-const perPage = ref(15)
+const perPage = ref(5)
 const totalItems = ref(0)
 const lastPage = ref(1)
+const itemsFrom = ref(0)
+const itemsTo = ref(0)
 
 /* ── fetch ── */
 const fetchInventory = async (page = 1) => {
@@ -23,6 +25,8 @@ const fetchInventory = async (page = 1) => {
     totalItems.value = res.data.total ?? res.data.length
     lastPage.value = res.data.last_page ?? 1
     currentPage.value = res.data.current_page ?? page
+    itemsFrom.value = res.data.from ?? 0
+    itemsTo.value = res.data.to ?? 0
   } catch {
     error.value = 'Failed to load inventory data.'
   } finally {
@@ -193,17 +197,41 @@ const goToPage = (page) => {
           </tbody>
         </table>
 
-        <!-- Pagination controls -->
+        <!-- Enhanced Pagination controls -->
         <div class="pagination-controls">
-          <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="paginate-btn">
-            <span class="material-symbols-outlined">chevron_left</span> Previous
-          </button>
           <div class="pagination-info">
-            Page {{ currentPage }} of {{ lastPage }}
+            Showing {{ itemsFrom }} to {{ itemsTo }} of {{ totalItems }} inventory items
           </div>
-          <button @click="goToPage(currentPage + 1)" :disabled="currentPage === lastPage" class="paginate-btn">
-            Next <span class="material-symbols-outlined">chevron_right</span>
-          </button>
+          <div class="pagination-buttons">
+            <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1" class="paginate-btn">
+              <span class="material-symbols-outlined">chevron_left</span> Previous
+            </button>
+            
+            <div class="page-numbers">
+              <template v-for="page in Math.min(5, lastPage)" :key="page">
+                <button 
+                  v-if="page <= lastPage"
+                  class="page-number" 
+                  :class="{ active: page === currentPage }"
+                  @click="goToPage(page)"
+                >
+                  {{ page }}
+                </button>
+              </template>
+              <span v-if="lastPage > 5" class="pages-ellipsis">...</span>
+              <button 
+                v-if="lastPage > 5 && currentPage < lastPage - 2"
+                class="page-number" 
+                @click="goToPage(lastPage)"
+              >
+                {{ lastPage }}
+              </button>
+            </div>
+            
+            <button @click="goToPage(currentPage + 1)" :disabled="currentPage === lastPage" class="paginate-btn">
+              Next <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -350,31 +378,52 @@ const goToPage = (page) => {
 .badge-out { background: #FEF2F2; color: #991B1B; border: 1px solid #FEE2E2; }
 
 /* ════════════════════════════════
-   PAGINATION
+   ENHANCED PAGINATION
 ════════════════════════════════ */
 .pagination-controls {
-  display: flex; align-items: center; justify-content: center;
-  gap: 1.5rem; padding: 1.5rem 2rem; border-top: 1px solid #F3EDE9;
+  padding: 1.5rem 2rem; border-top: 1px solid #F3EDE9;
   background: #FAF9F7;
+}
+.pagination-info {
+  text-align: center; color: #64748b; font-size: 0.875rem;
+  margin-bottom: 1.5rem; font-weight: 500;
+}
+.pagination-buttons {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
 }
 .paginate-btn {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.6rem 1.2rem; background: #fff; border: 1.5px solid #E0D7D0;
   border-radius: 10px; font-weight: 700; font-size: 0.88rem; color: #3E2723;
   cursor: pointer; transition: all 0.2s; outline: none;
+  min-width: 100px; justify-content: center;
 }
 .paginate-btn:hover:not(:disabled) { border-color: #8D6E63; background: #FAF8F6; }
-.paginate-btn:disabled {
-  opacity: 0.4; cursor: not-allowed;
+.paginate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.page-numbers {
+  display: flex; align-items: center; gap: 0.5rem;
 }
-.pagination-info {
-  font-size: 0.88rem; font-weight: 700; color: #5D4037;
-  padding: 0 1rem;
+.page-number {
+  width: 40px; height: 40px;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; color: #374151;
+  font-size: 0.875rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.page-number:hover { background: #f8fafc; border-color: #94a3b8; }
+.page-number.active {
+  background: #3E2723; border-color: #3E2723; color: #fff;
+}
+.pages-ellipsis {
+  color: #94a3b8; font-weight: bold; padding: 0 0.25rem;
 }
 
 @media (max-width: 768px) {
-  .pagination-controls { flex-direction: column; gap: 1rem; padding: 1rem; }
+  .pagination-controls { padding: 1rem; }
+  .pagination-buttons { flex-direction: column; gap: 1rem; }
   .paginate-btn { width: 100%; justify-content: center; }
-  .pagination-info { width: 100%; text-align: center; }
 }
 </style>

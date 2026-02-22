@@ -36,7 +36,9 @@ class InventoryController extends Controller
             $query->whereIn('branch_id', $branchIds);
         }
 
-        $inventory = $query->paginate(15);
+        // Get pagination parameters from request
+        $perPage = $request->input('per_page', 5);
+        $inventory = $query->paginate($perPage);
 
         return response()->json($inventory);
     }
@@ -46,7 +48,7 @@ class InventoryController extends Controller
      */
     public function productsByBranch($branchId, Request $request)
     {
-        $perPage = $request->input('per_page', 15);
+        $perPage = $request->input('per_page', 5);
         
         $inventory = Inventory::with('product')
             ->where('branch_id', $branchId)
@@ -150,7 +152,7 @@ class InventoryController extends Controller
     {
         $user = $request->user();
         $user->load('role');
-        $perPage = $request->input('per_page', 20);
+        $perPage = $request->input('per_page', 5);
 
         $query = StockMovement::with(['product', 'branch'])
             ->orderBy('created_at', 'desc');

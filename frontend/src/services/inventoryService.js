@@ -1,7 +1,7 @@
 import api from './api'
 
 export default {
-  getAll(page = 1, perPage = 15) {
+  getAll(page = 1, perPage = 5) {
     return api.get('/inventory', { params: { page, per_page: perPage } })
   },
   getProductsByBranch(branchId, page = 1, perPage = 5) {
@@ -19,7 +19,7 @@ export default {
   transfer(data) {
     return api.post('/inventory/transfer', data)
   },
-  history(page = 1, perPage = 20) {
+  history(page = 1, perPage = 5) {
     return api.get('/inventory/history', { params: { page, per_page: perPage } })
   }
 }

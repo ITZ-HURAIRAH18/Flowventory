@@ -12,15 +12,23 @@ const initializeAuth = () => {
   const stored = localStorage.getItem('user')
   const token = localStorage.getItem('token')
   
-  if (stored && token) {
+  if (stored && token && stored !== 'null' && token !== 'null' && stored !== 'undefined' && token !== 'undefined') {
     try {
-      user.value = JSON.parse(stored)
+      const userData = JSON.parse(stored)
+      user.value = userData
       isAuthenticated.value = true
     } catch (error) {
       console.error('Failed to parse stored user data:', error)
       clearAuth()
     }
+  } else {
+    clearAuth()
   }
+}
+
+// Force refresh authentication from localStorage
+const refreshAuth = () => {
+  initializeAuth()
 }
 
 // Clear authentication state
@@ -28,14 +36,27 @@ const clearAuth = () => {
   user.value = null
   isAuthenticated.value = false
   authError.value = null
+  
+  // Clear localStorage completely
   localStorage.removeItem('token')
   localStorage.removeItem('user')
+  
+  // Also clear any potentially corrupted entries
+  if (localStorage.getItem('token') === 'null' || localStorage.getItem('token') === 'undefined') {
+    localStorage.removeItem('token')
+  }
+  if (localStorage.getItem('user') === 'null' || localStorage.getItem('user') === 'undefined') {
+    localStorage.removeItem('user')
+  }
 }
 
 // Login user
 const login = async (credentials) => {
   isLoading.value = true
   authError.value = null
+  
+  // Clear any existing auth state first
+  clearAuth()
   
   try {
     const response = await api.post('/login', credentials)
@@ -199,6 +220,7 @@ export const useAuth = () => {
     clearAuth,
     hasPermission,
     canAccess,
+    refreshAuth,
     
     // State management
     initializeAuth

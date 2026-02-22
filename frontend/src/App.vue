@@ -1,10 +1,24 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuth } from '@/composables/useAuth'
 import AppHeader from '@/components/AppHeader.vue'
 import ToastContainer from '@/components/ui/ToastContainer.vue'
 
 const route = useRoute()
+const { refreshAuth, initializeAuth } = useAuth()
+
+// Ensure auth state is properly initialized
+onMounted(() => {
+  initializeAuth()
+})
+
+// Refresh auth state when navigating to authenticated pages
+watch(() => route.path, (newPath) => {
+  if (newPath !== '/login' && newPath !== '/') {
+    refreshAuth()
+  }
+})
 
 // Only show header on authenticated pages (not the login/home page)
 const showHeader = computed(() => {

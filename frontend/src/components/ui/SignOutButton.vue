@@ -2,9 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
+import { useAuth } from '@/composables/useAuth'
 import BaseButton from './BaseButton.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
-import api from '@/services/api'
 
 const props = defineProps({
   variant: { type: String, default: 'ghost' },
@@ -18,6 +18,7 @@ const emit = defineEmits(['signout-start', 'signout-success', 'signout-error'])
 
 const router = useRouter()
 const { showSuccess, showError } = useToast()
+const { logout } = useAuth()
 
 const showConfirm = ref(false)
 const isSigningOut = ref(false)
@@ -38,12 +39,8 @@ const performSignOut = async () => {
   try {
     emit('signout-start')
     
-    // Call API logout endpoint
-    await api.post('/logout')
-    
-    // Clear local storage
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    // Use the auth composable logout function
+    await logout()
     
     // Show success message
     showSuccess(

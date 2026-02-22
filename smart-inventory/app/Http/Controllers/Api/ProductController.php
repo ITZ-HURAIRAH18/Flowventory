@@ -19,8 +19,11 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
+        // If per_page is specified, use pagination, otherwise return all
+        $perPage = $request->get('per_page');
+        
         return response()->json(
-            $this->service->list($request->search, $request->status)
+            $this->service->list($request->search, $request->status, $perPage)
         );
     }
 

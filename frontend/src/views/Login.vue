@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '@/services/api'
+import { useAuth } from '@/composables/useAuth'
 import { toast } from '@/composables/useToast'
 
 // UI Components
@@ -10,6 +10,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ErrorBanner from '@/components/ui/ErrorBanner.vue'
 
 const router = useRouter()
+const { login: authenticate, isLoading, authError } = useAuth()
 
 const email = ref('')
 const password = ref('')
@@ -22,18 +23,17 @@ const login = async () => {
   error.value = null
 
   try {
-    const response = await api.post('/login', {
+    const result = await authenticate({
       email: email.value,
       password: password.value
     })
 
-    localStorage.setItem('token', response.data.access_token)
-    localStorage.setItem('user', JSON.stringify(response.data.user))
-
-    toast.success('Login Successful', `Welcome back, ${response.data.user.name}!`)
-    router.push('/dashboard')
+    if (result.success) {
+      toast.success('Login Successful', `Welcome back, ${result.user.name}!`)
+      router.push('/dashboard')
+    }
   } catch (err) {
-    error.value = err.response?.data?.message || 'Login failed. Please try again.'
+    error.value = err.message || 'Login failed. Please try again.'
   } finally {
     loading.value = false
   }
