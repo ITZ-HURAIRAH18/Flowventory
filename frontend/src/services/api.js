@@ -9,10 +9,32 @@ const api = axios.create({
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
-  if (token) {
+  if (token && token !== 'null' && token !== 'undefined') {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
+
+// ✅ Response interceptor for auth errors
+api.interceptors.response.use(
+  response => response,
+  error => {
+    // 401 means session is dead or unauthorized
+    if (error.response?.status === 401) {
+      const isLoginRequest = error.config.url.endsWith('/login')
+      
+      // Don't redirect on failed login attempt (handled by Login.vue)
+      if (!isLoginRequest) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default api

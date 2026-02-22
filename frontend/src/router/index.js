@@ -167,19 +167,24 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-  const user = JSON.parse(localStorage.getItem('user'))
+  const userStr = localStorage.getItem('user')
+  const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null
+  const isAuthenticated = token && token !== 'null' && token !== 'undefined'
 
   // 1. If logged in and trying to access Home or Login, go to Dashboard
-  if (token && (to.path === '/' || to.path === '/login')) {
+  if (isAuthenticated && (to.path === '/' || to.path === '/login')) {
     return next('/dashboard')
   }
 
   // 2. Check if route requires authentication
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    // Clear potentially corrupted token strings
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
     return next('/login')
   }
 
-  // Check if route requires specific roles (supports MULTIPLE roles)
+  // Check if route requires specific roles
   if (to.meta.roles) {
     if (!user || !user.role || !to.meta.roles.includes(user.role.name)) {
       alert("You don't have permission to access this page")

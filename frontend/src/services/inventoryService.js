@@ -4,7 +4,7 @@ export default {
   getAll(page = 1, perPage = 15) {
     return api.get('/inventory', { params: { page, per_page: perPage } })
   },
-  getProductsByBranch(branchId, page = 1, perPage = 15) {
+  getProductsByBranch(branchId, page = 1, perPage = 5) {
     return api.get(`/inventory/branch/${branchId}/products`, { params: { page, per_page: perPage } })
   },
   getStats() {

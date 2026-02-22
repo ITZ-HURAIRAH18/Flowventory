@@ -1,0 +1,87 @@
+.bf-wrap {
+  background: #fff;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.bf-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.5rem 1.75rem 1.25rem;
+  border-bottom: 1px solid #EDE8E4;
+  background: linear-gradient(135deg, #5D4037, #795548);
+}
+
+.bf-head-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.bf-head-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bf-head-icon .material-symbols-outlined {
+  font-size: 22px;
+  color: #fff;
+}
+
+.bf-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.15rem;
+  letter-spacing: -0.02em;
+}
+
+.bf-subtitle {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0;
+}
+
+.bf-close {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.bf-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.bf-close .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.bf-body {
+  padding: 1.5rem 1.75rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.bf-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
