@@ -13,7 +13,7 @@ use App\Http\Controllers\ReportController;
 // =============================
 // Public routes (no auth needed)
 // =============================
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
 
 // =============================
 // Authenticated routes

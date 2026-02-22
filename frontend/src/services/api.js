@@ -33,6 +33,25 @@ api.interceptors.response.use(
         }
       }
     }
+    
+    // 429 means rate limit exceeded
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'] || '60'
+      console.warn(`Rate limit exceeded. Retry after ${retryAfter} seconds.`)
+      
+      // You could show a toast notification here
+      if (window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            type: 'warning',
+            title: 'Rate Limit Exceeded',
+            message: `Please wait ${retryAfter} seconds before making more requests.`,
+            duration: parseInt(retryAfter) * 1000
+          }
+        }))
+      }
+    }
+    
     return Promise.reject(error)
   }
 )
