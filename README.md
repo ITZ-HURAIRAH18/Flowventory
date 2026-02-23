@@ -50,7 +50,7 @@ The system enforces strict access levels using middleware:
 | Branch Management (CRUD) | ✅ | ❌ | ❌ |
 | Product Management (CRUD) | ✅ | ❌ | ❌ |
 | View All Inventory | ✅ | ❌ | ❌ |
-| Manage Own Branch Stock | ✅ | ✅ | ❌ |
+| Manage Branch Stock | ✅ | ✅ (Own Only) | ❌ |
 | Create Orders | ❌ | ✅ | ✅ |
 | Global Reports | ✅ | ❌ | ❌ |
 | Branch Reports | ✅ | ✅ (Own Only) | ❌ |
