@@ -1,194 +1,225 @@
-# Flowventory — Smart Inventory Management System
+# 📦 Flowventory - Smart Inventory & Order Management System
 
-A full-stack inventory management system built with **Laravel** (backend) and **Vue.js** (frontend), featuring multi-branch stock management, order processing, and real-time stock tracking.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend | Laravel (PHP), MySQL |
-| Frontend | Vue 3 (Composition API), Vite |
-| Auth | Laravel Sanctum (Token-based) |
-| API | RESTful JSON API |
-
-## Key Features
-
-- **Multi-Branch Inventory** — Track stock levels independently per branch
-- **Product Management** — Full CRUD with SKU, cost/sale price, tax percentage
-- **Stock Operations** — Add, adjust, and transfer stock between branches
-- **Order Management** — Create orders with automatic stock deduction
-- **Stock Movement History** — Complete audit trail of all stock changes
-- **Role-Based Access** — Branch managers and users with Sanctum authentication
+<div align="center">
+  <img src="https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vue.js-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white" />
+  <img src="https://img.shields.io/badge/Sanctum-Security-blue?style=for-the-badge" />
+</div>
 
 ---
 
-## Concurrency Handling — Preventing Overselling
+## 🌟 Introduction
 
-### The Problem
+**Flowventory** is a state-of-the-art, multi-branch inventory and order management solution designed for modern enterprises. It provides a seamless experience for managing products, tracking real-time stock levels across multiple locations, and processing complex orders with guaranteed data integrity.
 
-If two users attempt to purchase the last available stock **simultaneously**, a naive system would oversell:
-
-```
-Without protection:
-
-Time    User A                          User B
-─────────────────────────────────────────────────────────
-T1      Reads stock: qty = 1
-T2                                      Reads stock: qty = 1
-T3      1 >= 1? ✅ Passes               1 >= 1? ✅ Passes
-T4      Deducts: 1-1 = 0, SAVE          Deducts: 1-1 = 0, SAVE
-─────────────────────────────────────────────────────────
-Result: BOTH orders succeed — 2 items sold but only 1 existed! (OVERSOLD)
-```
-
-### Our Solution: Pessimistic Locking with Database Transactions
-
-We use Laravel's `lockForUpdate()` inside a `DB::transaction()` to prevent this. This is called **pessimistic locking** — it tells the database: "Lock this row. No one else can read or modify it until I'm done."
-
-**Implementation** (`OrderController.php`):
-
-```php
-return DB::transaction(function () use ($request) {
-
-    foreach ($request->items as $item) {
-
-        // LOCK the inventory row — other transactions WAIT here
-        $inventory = Inventory::where('branch_id', $request->branch_id)
-            ->where('product_id', $item['product_id'])
-            ->lockForUpdate()   // ← Pessimistic lock (SELECT ... FOR UPDATE)
-            ->first();
-
-        // Check stock AFTER acquiring the lock
-        if (!$inventory || $inventory->quantity < $item['quantity']) {
-            throw new Exception('Insufficient stock for product ID: ' . $item['product_id']);
-        }
-
-        // Deduct stock (safe — we hold the lock)
-        $inventory->quantity -= $item['quantity'];
-        $inventory->save();
-    }
-
-    // Create order and order items...
-});
-```
-
-### How It Works — Step by Step
-
-```
-With lockForUpdate() protection:
-
-Time    User A                              User B
-───────────────────────────────────────────────────────────────
-T1      BEGIN TRANSACTION
-T2      lockForUpdate() → LOCKS row 🔒
-T3      Reads stock: qty = 1               BEGIN TRANSACTION
-T4      1 >= 1? ✅ Yes!                     lockForUpdate() → BLOCKED ⏳
-T5      Deducts: 1 - 1 = 0                 Waiting for lock... ⏳
-T6      COMMIT → UNLOCKS row 🔓            Waiting for lock... ⏳
-T7                                          Lock acquired 🔒, reads: qty = 0
-T8                                          0 >= 1? ❌ NO!
-T9                                          throw "Insufficient stock"
-T10                                         ROLLBACK → UNLOCKS row 🔓
-───────────────────────────────────────────────────────────────
-Result: User A gets the item ✅
-        User B gets error: "Insufficient stock" ✅
-        NO overselling! The system is safe. 🎉
-```
-
-### Why This Works
-
-1. **`DB::transaction()`** — Groups all operations (check stock, deduct stock, create order) into a single atomic unit. If any step fails, ALL changes roll back.
-
-2. **`lockForUpdate()`** — Translates to SQL `SELECT ... FOR UPDATE`. The database engine (MySQL/InnoDB) places an exclusive lock on the matched row. Any other transaction trying to read the same row with `FOR UPDATE` will **wait** until the first transaction commits or rolls back.
-
-3. **Check-then-act safety** — The stock check (`quantity < requested`) happens AFTER the lock is acquired, so the value read is guaranteed to be current and unchangeable by others.
-
-### What Happens in Each Scenario
-
-| Scenario | Result |
-|----------|--------|
-| 2 users order the last 1 item | First user succeeds, second gets "Insufficient stock" error |
-| User orders 5 items but only 3 in stock | Order rejected with error, stock unchanged |
-| Order has 3 products, stock check fails on 2nd product | Entire transaction rolls back — 1st product's stock is restored |
-| Server crashes mid-transaction | Database auto-rolls back uncommitted transactions |
+Built with **Laravel** on the backend and **Vue.js 3** on the frontend, Flowventory offers a high-performance, responsive, and secure platform for business operations.
 
 ---
 
-## Database Schema
+## 🚀 Core Features
 
-### Core Tables
+-   **Multi-Branch Support**: Manage inventory across different locations with localized tracking.
+-   **Role-Based Access Control (RBAC)**: Fine-grained permissions for Super Admins, Branch Managers, and Sales Specialists.
+-   **Smart Inventory**: Real-time stock levels with support for Add, Adjust, and Transfer operations.
+-   **Atomic Order Processing**: Database-level locking to prevent overselling in high-concurrency environments.
+-   **Professional Reporting**: Integrated dashboards for branch-specific and global performance metrics.
+-   **Premium UI**: Modern interface with a focused brown/dark theme for a professional look.
 
+---
+
+## 🛠 Tech Stack
+
+| Component | Technology |
+| :--- | :--- |
+| **Frontend** | Vue.js 3 (Composition API), Vite, Vue Router, Axios |
+| **Backend** | Laravel 10+, PHP 8.1+ |
+| **Database** | MySQL |
+| **Security** | Laravel Sanctum (Token Auth) |
+| **Design** | Vanilla CSS (Custom UI Component Library) |
+
+---
+
+## 🔐 Role-Based Access Control (RBAC)
+
+The system enforces strict access levels using middleware:
+
+| Feature | Super Admin | Branch Manager | Sales User |
+| :--- | :---: | :---: | :---: |
+| User Management (CRUD) | ✅ | ❌ | ❌ |
+| Branch Management (CRUD) | ✅ | ❌ | ❌ |
+| Product Management (CRUD) | ✅ | ❌ | ❌ |
+| View All Inventory | ✅ | ❌ | ❌ |
+| Manage Own Branch Stock | ✅ | ✅ | ❌ |
+| Create Orders | ❌ | ✅ | ✅ |
+| Global Reports | ✅ | ❌ | ❌ |
+| Branch Reports | ✅ | ✅ (Own Only) | ❌ |
+
+---
+
+## 📥 Installation & Setup
+
+### Prerequisites
+- PHP >= 8.1
+- Composer
+- Node.js & npm
+- MySQL
+
+### Backend Setup (Laravel)
+1. Navigate to `smart-inventory/`.
+2. Run `composer install`.
+3. Copy `.env.example` to `.env` and configure your database.
+4. Run migrations and seed data: `php artisan migrate --seed`.
+5. Generate app key: `php artisan key:generate`.
+6. Start server: `php artisan serve`.
+
+### Frontend Setup (Vue.js)
+1. Navigate to `frontend/`.
+2. Run `npm install`.
+3. Start development server: `npm run dev`.
+
+---
+
+## 🔑 Sample Login Credentials
+
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Super Admin** | `admin@example.com` | `password123` |
+| **Branch Manager** | `manager@example.com` | `password123` |
+| **Sales User** | `sales@example.com` | `password123` |
+
+---
+
+## 📖 API Documentation (Postman Style)
+
+All requests (except Login) require the following headers:
+`Authorization: Bearer {YOUR_TOKEN}`
+`Accept: application/json`
+
+### 1. Authentication
+**POST** `/api/login`
+```json
+{
+    "email": "admin@example.com",
+    "password": "password"
+}
 ```
-products          branches          users
-├── id            ├── id            ├── id
-├── name          ├── name          ├── name
-├── sku           ├── address       ├── email
-├── cost_price    ├── manager_id    └── password
-├── sale_price    └── timestamps
-├── tax_percentage
-├── status
-└── timestamps
 
-inventories (pivot: branch ↔ product)
-├── id
-├── branch_id → branches.id
-├── product_id → products.id
-├── quantity
-└── timestamps
-UNIQUE(branch_id, product_id)
+---
 
-orders                    order_items
-├── id                    ├── id
-├── branch_id             ├── order_id → orders.id
-├── user_id               ├── product_id → products.id
-├── subtotal              ├── quantity
-├── tax                   ├── price
-├── total                 ├── tax
-└── timestamps            └── timestamps
-
-stock_movements (audit trail)
-├── id
-├── branch_id
-├── product_id
-├── type (add/adjust/transfer_in/transfer_out)
-├── quantity
-├── note
-└── timestamps
+### 2. Branch Management (Admin Only)
+**GET** `/api/branches` - List all branches  
+**POST** `/api/branches` - Create a branch
+```json
+{
+    "name": "Downtown Branch",
+    "address": "123 Main St, New York",
+    "manager_id": 2
+}
 ```
 
-## API Endpoints
+**PUT** `/api/branches/{id}` - Update branch info  
+**DELETE** `/api/branches/{id}` - Delete a branch  
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/login` | User login |
-| POST | `/api/logout` | User logout |
-| GET/POST | `/api/branches` | List / Create branches |
-| GET/POST | `/api/products` | List / Create products |
-| GET | `/api/inventory` | List all inventory |
-| GET | `/api/inventory/branch/{id}/products` | Products with stock at branch |
-| POST | `/api/inventory/add` | Add stock |
-| POST | `/api/inventory/adjust` | Adjust stock |
-| POST | `/api/inventory/transfer` | Transfer between branches |
-| GET | `/api/inventory/history` | Stock movement history |
-| POST | `/api/orders` | Create order (with stock deduction) |
+---
 
-## Setup
-
-### Backend (Laravel)
-
-```bash
-cd smart-inventory
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-php artisan serve
+### 3. Product Management (Admin Only)
+**GET** `/api/products` - List all products  
+**POST** `/api/products` - Add new product
+```json
+{
+    "name": "Wireless Mouse",
+    "sku": "WM-001",
+    "cost_price": 1500,
+    "sale_price": 2500,
+    "tax_percentage": 5,
+    "status": "active"
+}
 ```
 
-### Frontend (Vue)
+**PUT** `/api/products/{id}` - Edit product details  
+**DELETE** `/api/products/{id}` - Remove product  
 
-```bash
-cd frontend
-npm install
-npm run dev
+---
+
+### 4. User Management (Admin Only)
+**GET** `/api/users` - List all users  
+**POST** `/api/users` - Create new user account
+```json
+{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "password123",
+    "password_confirmation": "password123",
+    "role_id": 2
+}
 ```
+
+**PUT** `/api/users/{id}` - Update user status/role  
+**DELETE** `/api/users/{id}` - Remove user access  
+
+---
+
+### 5. Inventory Operations (Admin & Manager)
+**GET** `/api/inventory` - Get real-time stock list  
+**GET** `/api/inventory/stats` - Inventory summary metrics  
+**GET** `/api/inventory/history` - Stock movement logs  
+
+**POST** `/api/inventory/add` - Add stock quantity
+```json
+{
+    "branch_id": 1,
+    "product_id": 5,
+    "quantity": 50
+}
+```
+
+**POST** `/api/inventory/adjust` - Adjust stock (positive/negative)
+```json
+{
+    "branch_id": 1,
+    "product_id": 5,
+    "quantity": -2 
+}
+```
+
+**POST** `/api/inventory/transfer` - Move stock between branches
+```json
+{
+    "from_branch_id": 1,
+    "to_branch_id": 2,
+    "product_id": 5,
+    "quantity": 10
+}
+```
+
+---
+
+### 6. Order Management (Manager & Sales)
+**POST** `/api/orders` - Process a customer order
+```json
+{
+    "branch_id": 1,
+    "items": [
+        { "product_id": 1, "quantity": 2 },
+        { "product_id": 3, "quantity": 1 }
+    ]
+}
+```
+*Note: Atomic transactions ensure stock is deducted safely.*
+
+---
+
+### 7. Reports & Analytics
+**GET** `/api/report/summary` - Aggregated business metrics  
+**GET** `/api/branches/{id}/report` - Deep-dive branch metrics  
+
+---
+
+## 🛡️ Security & Integrity
+- **Sanctum Authentication**: Secure token-based access.
+- **Form Requests**: Server-side validation for all inputs.
+- **Pessimistic Locking**: `lockForUpdate()` prevents stock race conditions.
+
+## 📝 License
+This project is licensed under the MIT License.
