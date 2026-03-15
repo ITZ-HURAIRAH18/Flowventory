@@ -5,7 +5,7 @@ FROM php:8.2-apache
 WORKDIR /var/www/html
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libzip-dev \
     unzip \
     git \
@@ -15,18 +15,23 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && docker-php-ext-install pdo_pgsql mbstring zip \
     && docker-php-ext-enable pdo_pgsql \
-    && a2enmod rewrite
+    && a2enmod rewrite \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy all project files
-COPY . .
+# Copy composer files first for dependency installation
+COPY composer.json ./
+COPY composer.lock* ./
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Configure Apache to serve Laravel public directory with proper rewrite rules
+# Copy all remaining project files
+COPY . .
+
+# Configure Apache to serve Laravel public directory
 RUN cat > /etc/apache2/sites-available/000-default.conf << 'EOF'
 <VirtualHost *:80>
     ServerName localhost
@@ -55,6 +60,7 @@ EOF
 
 # Set Laravel permissions
 RUN chown -R www-data:www-data /var/www/html && \
+    chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Create entrypoint script
