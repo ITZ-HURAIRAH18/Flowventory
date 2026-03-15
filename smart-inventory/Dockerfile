@@ -21,15 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy composer files first for dependency installation
-COPY composer.json ./
-COPY composer.lock* ./
+# Copy all project files (assumes build context is smart-inventory directory)
+COPY . .
 
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Copy all remaining project files
-COPY . .
+RUN if [ -f composer.json ]; then composer install --no-dev --optimize-autoloader; fi
 
 # Configure Apache to serve Laravel public directory
 RUN cat > /etc/apache2/sites-available/000-default.conf << 'EOF'

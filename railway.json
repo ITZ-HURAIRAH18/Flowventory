@@ -3,6 +3,6 @@
   "build": {
     "builder": "dockerfile",
     "context": "smart-inventory",
-    "dockerfile": "smart-inventory/Dockerfile"
+    "dockerfile": "Dockerfile"
   }
 }
