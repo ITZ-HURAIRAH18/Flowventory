@@ -45,14 +45,22 @@ class InventoryController extends Controller
 
     /**
      * Get products available at a specific branch (stock > 0) with pagination
+     * Returns inventory items with complete product data for order creation
      */
     public function productsByBranch($branchId, Request $request)
     {
-        $perPage = $request->input('per_page', 5);
+        $perPage = $request->input('per_page', 100);
         
-        $inventory = Inventory::with('product')
+        // Fetch inventory with complete product data (ensure all pricing fields included)
+        $inventory = Inventory::with([
+            'product' => function ($query) {
+                // Explicitly select all product fields to ensure prices are included
+                $query->select('id', 'name', 'sku', 'cost_price', 'sale_price', 'tax_percentage', 'status', 'created_at', 'updated_at');
+            }
+        ])
             ->where('branch_id', $branchId)
             ->where('quantity', '>', 0)
+            ->select('id', 'branch_id', 'product_id', 'quantity', 'created_at', 'updated_at')
             ->paginate($perPage);
 
         return response()->json($inventory);

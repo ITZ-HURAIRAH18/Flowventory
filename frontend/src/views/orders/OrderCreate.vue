@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import inventoryService from '@/services/inventoryService'
 import orderService from '@/services/orderService'
+import { useAppData } from '@/composables/useAppData'
 import { toast } from '@/composables/useToast'
 
 // UI Components
@@ -14,11 +15,19 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ErrorBanner from '@/components/ui/ErrorBanner.vue'
 
 const router = useRouter()
+const { fetchProducts } = useAppData()
 
 const branches = ref([])
-const products = ref([])
+const productOptions = ref([])
+const productMap = ref({})
 const branch_id = ref('')
-const items = ref([{ product_id: '', quantity: 1 }])
+
+// Separate reactive storage for product selections and quantities
+const productSelections = ref({})  // key: item.id, value: product_id
+const quantities = ref({})         // key: item.id, value: quantity
+
+const items = ref([{ id: 1 }])
+let nextItemId = ref(2)
 
 const loadingBranches = ref(false)
 const loadingProducts = ref(false)
@@ -26,11 +35,22 @@ const submitting = ref(false)
 const globalError = ref('')
 const success = ref('')
 
+// Ensure items always have their selections/quantities initialized
+watch(items, (newItems) => {
+  newItems.forEach(item => {
+    if (!(item.id in productSelections.value)) {
+      productSelections.value[item.id] = ''
+    }
+    if (!(item.id in quantities.value)) {
+      quantities.value[item.id] = 1
+    }
+  })
+}, { deep: true })
+
 const fetchBranches = async () => {
   loadingBranches.value = true
   try {
     const res = await api.get('/my-branches')
-    // Use cache if possible, otherwise fetch
     branches.value = res.data.map(b => ({ label: b.name, value: b.id }))
   } catch (err) {
     globalError.value = 'Failed to load store registry.'
@@ -42,75 +62,176 @@ const fetchBranches = async () => {
 const onBranchChange = async () => {
   globalError.value = ''
   if (!branch_id.value) {
-    products.value = []
+    productOptions.value = []
+    productMap.value = {}
     return
   }
+  
   loadingProducts.value = true
   try {
     const res = await inventoryService.getProductsByBranch(branch_id.value, 1, 100)
-    // Handle paginated response structure
     const rawList = res.data.data || res.data || []
     
-    products.value = (Array.isArray(rawList) ? rawList : [])
-      .filter(item => item && item.product) // Skip records with missing product data
-      .map(item => {
+    productOptions.value = []
+    productMap.value = {}
+    
+    ;(Array.isArray(rawList) ? rawList : [])
+      .filter(item => item && item.product) 
+      .forEach(item => {
         const p = item.product
-        return {
-          ...p,
-          label: `${p.name} (STOCK: ${item.quantity})`,
-          value: p.id,
-          stock: item.quantity,
-          disabled: p.status === 'inactive' || item.quantity < 1
+        const productId = p.id
+        
+        productMap.value[productId] = {
+          id: productId,
+          name: p.name,
+          sku: p.sku,
+          sale_price: parseFloat(p.sale_price) || 0,
+          cost_price: parseFloat(p.cost_price) || 0,
+          tax_percentage: parseFloat(p.tax_percentage) || 0,
+          status: p.status,
+          stock: item.quantity
         }
+        
+        productOptions.value.push({
+          label: `${p.name} (${p.sku}) - Stock: ${item.quantity}`,
+          value: productId,
+          disabled: p.status === 'inactive' || item.quantity < 1
+        })
       })
-    items.value = [{ product_id: '', quantity: 1 }]
+    
+    // Reset with new initial item
+    items.value = [{ id: 1 }]
+    productSelections.value = { 1: '' }
+    quantities.value = { 1: 1 }
+    nextItemId.value = 2
   } catch (err) {
     globalError.value = 'Failed to sync branch inventory.'
-    products.value = []
+    productOptions.value = []
+    productMap.value = {}
   } finally {
     loadingProducts.value = false
   }
 }
 
-const addItem = () => items.value.push({ product_id: '', quantity: 1 })
-const removeItem = (i) => items.value.splice(i, 1)
+const addItem = () => {
+  const newId = nextItemId.value++
+  items.value.push({ id: newId })
+  productSelections.value[newId] = ''
+  quantities.value[newId] = 1
+}
 
-const getProduct = (id) => products.value.find(p => p.value === id)
+const removeItem = (idx) => {
+  const removedItem = items.value[idx]
+  delete productSelections.value[removedItem.id]
+  delete quantities.value[removedItem.id]
+  items.value.splice(idx, 1)
+}
+
+const getProduct = (productId) => {
+  if (!productId || !productMap.value[productId]) return null
+  return productMap.value[productId]
+}
+
+const getLineTotal = (productId, quantity) => {
+  const p = getProduct(productId)
+  if (!p) return 0
+  return p.sale_price * (parseFloat(quantity) || 0)
+}
+
+const getLineTax = (productId, quantity) => {
+  const p = getProduct(productId)
+  if (!p) return 0
+  const price = p.sale_price * (parseFloat(quantity) || 0)
+  return price * (p.tax_percentage / 100)
+}
 
 const subtotal = computed(() => {
-  return items.value.reduce((s, i) => {
-    const p = getProduct(i.product_id)
-    return s + (p ? (p.sale_price * i.quantity) : 0)
+  return items.value.reduce((sum, item) => {
+    const productId = productSelections.value[item.id]
+    const quantity = quantities.value[item.id]
+    return sum + getLineTotal(productId, quantity)
   }, 0)
 })
 
 const tax = computed(() => {
-  return items.value.reduce((s, i) => {
-    const p = getProduct(i.product_id)
-    return s + (p ? (p.sale_price * i.quantity * (p.tax_percentage / 100)) : 0)
+  return items.value.reduce((sum, item) => {
+    const productId = productSelections.value[item.id]
+    const quantity = quantities.value[item.id]
+    return sum + getLineTax(productId, quantity)
   }, 0)
 })
 
 const total = computed(() => subtotal.value + tax.value)
-const validItems = computed(() => items.value.filter(i => i.product_id && i.quantity > 0))
-const canSubmit = computed(() => branch_id.value && validItems.value.length > 0 && !submitting.value)
+
+const validItems = computed(() => {
+  return items.value
+    .filter(item => productSelections.value[item.id] && parseFloat(quantities.value[item.id]) > 0)
+    .map(item => ({
+      product_id: productSelections.value[item.id],
+      quantity: parseFloat(quantities.value[item.id])
+    }))
+})
+
+const canSubmit = computed(() => {
+  return branch_id.value && validItems.value.length > 0 && !submitting.value
+})
+
+const handleConfirmOrder = async (e) => {
+  if (e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  // Don't trigger loading screen, let it be fast
+  await submitOrder()
+}
 
 const submitOrder = async () => {
   globalError.value = ''
+  
+  // Validate before submitting
+  if (!branch_id.value) {
+    globalError.value = 'Please select a branch'
+    return
+  }
+  
+  if (validItems.value.length === 0) {
+    globalError.value = 'Please add at least one item with valid quantity'
+    return
+  }
+  
   submitting.value = true
+  
   try {
-    await orderService.create({
+    console.log('Submitting order with:', {
       branch_id: branch_id.value,
       items: validItems.value
     })
-    success.value = 'Order confirmed.'
+    
+    const response = await orderService.create({
+      branch_id: branch_id.value,
+      items: validItems.value
+    })
+    
+    console.log('Order created successfully:', response)
     toast.success('Order Created', `Order with ${validItems.value.length} item(s) has been created successfully.`)
-    setTimeout(() => router.push('/dashboard'), 1200)
+    
+    // Wait for router navigation to complete before function exits
+    console.log('Redirecting to dashboard...')
+    try {
+      await router.push('/dashboard')
+      console.log('Navigation completed successfully')
+    } catch (navErr) {
+      console.error('Navigation error:', navErr)
+      // Even if navigation fails, don't stay on this page
+      window.location.href = '/dashboard'
+    }
+    
   } catch (e) {
-    globalError.value = e.response?.data?.message || 'Checkout error.'
-    toast.error('Order Failed', e.response?.data?.message || 'Failed to create order. Please try again.')
-  } finally {
-    submitting.value = false
+    console.error('Order creation failed:', e)
+    submitting.value = false  // Only set to false on error
+    const errorMsg = e.response?.data?.message || e.message || 'Failed to create order. Please try again.'
+    globalError.value = errorMsg
+    toast.error('Order Failed', errorMsg)
   }
 }
 
@@ -120,9 +241,9 @@ onMounted(fetchBranches)
 <template>
   <div class="oc-page">
     <LoadingScreen 
-      v-if="loadingBranches || submitting" 
+      v-if="loadingBranches" 
       :show="true" 
-      :message="submitting ? 'Processing Transaction…' : 'Loading Sites…'" 
+      :message="'Loading Sites…'" 
     />
 
     <!-- Header -->
@@ -162,27 +283,28 @@ onMounted(fetchBranches)
             </div>
             <div class="sum-row">
               <span class="sum-lbl">NET TOTAL</span>
-              <span class="sum-val">PKR {{ subtotal.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ subtotal.toLocaleString('en-PK', { minimumFractionDigits: 0 }) }}</span>
             </div>
             <div class="sum-row">
               <span class="sum-lbl">VAT / TAX</span>
-              <span class="sum-val">PKR {{ tax.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ tax.toLocaleString('en-PK', { minimumFractionDigits: 0 }) }}</span>
             </div>
             <div class="sum-divider"></div>
             <div class="sum-row sum-main">
               <span class="sum-lbl">GRAND TOTAL</span>
-              <span class="sum-val">PKR {{ total.toLocaleString() }}</span>
+              <span class="sum-val">PKR {{ total.toLocaleString('en-PK', { minimumFractionDigits: 0 }) }}</span>
             </div>
           </div>
 
           <div class="btn-finalize-wrap">
             <BaseButton
+              type="button"
               fullWidth
               variant="primary"
               :disabled="!canSubmit"
               :loading="submitting"
               icon="check_circle"
-              @click="submitOrder"
+              @click="handleConfirmOrder"
             >
               {{ submitting ? 'PROCESSING...' : 'CONFIRM ORDER' }}
             </BaseButton>
@@ -222,13 +344,13 @@ onMounted(fetchBranches)
 
           <template v-else>
             <div class="oc-list">
-              <div v-for="(item, idx) in items" :key="idx" class="oc-item-row">
+              <div v-for="(item, idx) in items" :key="`item-${item.id}`" class="oc-item-row">
                 <div class="oc-item-cols">
                   <div class="oc-col-prod">
                     <BaseSelect
                       label="PRODUCT SKU"
-                      v-model="item.product_id"
-                      :options="products"
+                      v-model="productSelections[item.id]"
+                      :options="productOptions"
                       placeholder="— CHOOSE ITEM —"
                       icon="inventory_2"
                     />
@@ -238,15 +360,18 @@ onMounted(fetchBranches)
                     <BaseInput
                       type="number"
                       label="QTY"
-                      v-model.number="item.quantity"
+                      :value="quantities[item.id]"
+                      @input="(e) => { quantities[item.id] = parseFloat(e.target.value) || 1 }"
+                      @change="(e) => { quantities[item.id] = Math.max(1, parseFloat(e.target.value) || 1) }"
                       min="1"
+                      step="1"
                     />
                   </div>
 
                   <div class="oc-col-price">
                     <span class="oc-line-price-label">LINE TOTAL</span>
                     <div class="oc-line-price-val">
-                      PKR {{ (getProduct(item.product_id)? (getProduct(item.product_id).sale_price * item.quantity) : 0).toLocaleString() }}
+                      PKR {{ getLineTotal(productSelections[item.id], quantities[item.id]).toLocaleString('en-PK', { minimumFractionDigits: 0 }) }}
                     </div>
                   </div>
 
@@ -255,8 +380,8 @@ onMounted(fetchBranches)
                   </button>
                 </div>
                 <!-- Mini info -->
-                <div v-if="getProduct(item.product_id)" class="oc-item-details">
-                  UNIT: PKR {{ getProduct(item.product_id).sale_price }} • TAX: {{ getProduct(item.product_id).tax_percentage }}%
+                <div v-if="getProduct(productSelections[item.id])" class="oc-item-details">
+                  UNIT: PKR {{ getProduct(productSelections[item.id]).sale_price.toLocaleString('en-PK', { minimumFractionDigits: 0 }) }} • TAX: {{ getProduct(productSelections[item.id]).tax_percentage }}%
                 </div>
               </div>
             </div>
