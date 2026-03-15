@@ -1,70 +1,98 @@
-# Use official PHP image with Apache
-FROM php:8.2-apache
+# Use PHP-FPM with Alpine Linux (no Apache MPM conflicts!)
+FROM php:8.2-fpm-alpine
 
-# Set working directory FIRST before any COPY commands
-WORKDIR /var/www/html
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libzip-dev \
-    unzip \
-    git \
-    curl \
-    libonig-dev \
-    libpq-dev \
+# Install Alpine dependencies
+RUN apk add --no-cache \
+    nginx \
     postgresql-client \
-    && docker-php-ext-install pdo_pgsql mbstring zip \
-    && docker-php-ext-enable pdo_pgsql \
-    && a2enmod rewrite \
-    && rm -rf /var/lib/apt/lists/*
+    libpq-dev \
+    oniguruma-dev \
+    openssl-dev \
+    curl \
+    git \
+    zip \
+    && docker-php-ext-install pdo_pgsql mbstring \
+    && rm -rf /var/cache/apk/*
 
-# Clean up Apache MPM modules - remove all and enable only prefork
-RUN find /etc/apache2/mods-enabled -name "mpm_*" -delete && \
-    find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete && \
-    a2dismod mpm_event 2>/dev/null || true && \
-    a2dismod mpm_worker 2>/dev/null || true && \
-    a2dismod mpm_itk 2>/dev/null || true && \
-    a2enmod mpm_prefork
+# Set working directory
+WORKDIR /var/www/html
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy all project files (assumes build context is smart-inventory directory)
+# Copy all project files
 COPY . .
 
 # Install PHP dependencies
 RUN if [ -f composer.json ]; then composer install --no-dev --optimize-autoloader; fi
 
-# Configure Apache to serve Laravel public directory
-RUN cat > /etc/apache2/sites-available/000-default.conf << 'EOF'
-<VirtualHost *:80>
-    ServerName localhost
-    DocumentRoot /var/www/html/public
-    
-    <Directory /var/www/html/public>
-        AllowOverride All
-        Require all granted
-        
-        <IfModule mod_rewrite.c>
-            RewriteEngine On
-            RewriteCond %{REQUEST_FILENAME} !-f
-            RewriteCond %{REQUEST_FILENAME} !-d
-            RewriteRule ^ index.php [QSA,L]
-        </IfModule>
-    </Directory>
-    
-    <FilesMatch \.php$>
-        SetHandler application/x-httpd-php
-    </FilesMatch>
-    
-    ErrorLog ${APACHE_LOG_DIR}/error.log
-    CustomLog ${APACHE_LOG_DIR}/access.log combined
-</VirtualHost>
-EOF
+# Configure Nginx to serve Laravel
+RUN cat > /etc/nginx/nginx.conf << 'EOF'
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
 
-# Verify only one MPM is enabled and fix any conflicts
-RUN ls /etc/apache2/mods-enabled/mpm_* 2>/dev/null | xargs -r rm && \
-    a2enmod mpm_prefork
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    
+    access_log /var/log/nginx/access.log main;
+    
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss;
+    
+    server {
+        listen 80 default_server;
+        server_name _;
+        root /var/www/html/public;
+        
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        
+        index index.html index.php;
+        
+        charset utf-8;
+        
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+        
+        location = /favicon.ico { access_log off; log_not_found off; }
+        location = /robots.txt  { access_log off; log_not_found off; }
+        
+        error_page 404 /index.php;
+        
+        location ~ \.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+        
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+    }
+}
+EOF
 
 # Set Laravel permissions and create missing directories
 RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
@@ -72,43 +100,28 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Create entrypoint script
+# Create entrypoint script with both Nginx and PHP-FPM
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
-#!/bin/bash
+#!/bin/sh
 set -e
-
-# CRITICAL: Fix Apache MPM conflict before starting Apache
-echo "Cleaning up Apache MPM modules..."
-find /etc/apache2/mods-enabled -name "mpm_*" -type f -delete 2>/dev/null || true
-find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete 2>/dev/null || true
-rm -f /etc/apache2/mods-enabled/mpm_*.conf /etc/apache2/mods-enabled/mpm_*.load 2>/dev/null || true
-
-# Disable all MPM modules
-a2dismod mpm_event 2>/dev/null || true
-a2dismod mpm_worker 2>/dev/null || true  
-a2dismod mpm_itk 2>/dev/null || true
-
-# Enable only prefork
-echo "Enabling mpm_prefork..."
-a2enmod mpm_prefork
-
-# Verify configuration before starting
-echo "Testing Apache configuration..."
-apache2ctl configtest || (echo "Apache config test failed!" && exit 1)
 
 # Handle PORT environment variable for Railway
 PORT=${PORT:-8000}
-if [ "$PORT" != "80" ]; then
-    sed -i "s/Listen 80/Listen ${PORT}/g" /etc/apache2/ports.conf
-fi
 
-# Run migrations
+# Update Nginx to listen on the specified port
+sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
+
+# Run database migrations
 echo "Running database migrations..."
 php artisan migrate --force
 
-# Start Apache
-echo "Starting Apache..."
-exec apache2-foreground
+# Start PHP-FPM in background
+echo "Starting PHP-FPM..."
+php-fpm -D
+
+# Start Nginx in foreground
+echo "Starting Nginx on port ${PORT}..."
+exec nginx -g 'daemon off;'
 EOF
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
