@@ -16,9 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-install pdo_pgsql mbstring zip \
     && docker-php-ext-enable pdo_pgsql \
     && a2enmod rewrite \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf \
-    && a2enmod mpm_prefork
+    && rm -rf /var/lib/apt/lists/*
+
+# Clean up Apache MPM modules - remove all and enable only prefork
+RUN find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete && \
+    a2enmod mpm_prefork
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -56,6 +58,10 @@ RUN cat > /etc/apache2/sites-available/000-default.conf << 'EOF'
 </VirtualHost>
 EOF
 
+# Verify only one MPM is enabled and fix any conflicts
+RUN ls /etc/apache2/mods-enabled/mpm_* 2>/dev/null | xargs -r rm && \
+    a2enmod mpm_prefork
+
 # Set Laravel permissions and create missing directories
 RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chown -R www-data:www-data /var/www/html && \
@@ -66,6 +72,11 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/bash
 set -e
+
+# Ensure only mpm_prefork is loaded - remove other MPM symlinks
+find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete 2>/dev/null || true
+ln -sf /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf
+ln -sf /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load
 
 # Handle PORT environment variable for Railway
 PORT=${PORT:-8000}
