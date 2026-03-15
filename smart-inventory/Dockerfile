@@ -51,9 +51,14 @@ RUN echo '<VirtualHost *:80>\n\
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+PORT=${PORT:-8000}\n\
+sed -i "s/Listen 80/Listen ${PORT}/g" /etc/apache2/ports.conf\n\
+php artisan migrate --force\n\
+exec apache2-foreground' > /usr/local/bin/docker-entrypoint.sh && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose port (Railway assigns $PORT)
 ENV PORT 8080
