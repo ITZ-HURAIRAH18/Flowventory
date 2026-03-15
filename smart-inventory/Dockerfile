@@ -1,4 +1,5 @@
 # Use PHP-FPM with Alpine Linux (no Apache MPM conflicts!)
+# Build cache key: 2026-03-16-nginx-rebuild
 FROM php:8.2-fpm-alpine
 
 # Install Alpine dependencies
@@ -111,9 +112,9 @@ PORT=${PORT:-8000}
 # Update Nginx to listen on the specified port
 sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
 
-# Run database migrations
-echo "Running database migrations..."
-php artisan migrate --force
+# Run database migrations (with error handling - don't fail if DB isn't ready yet)
+echo "Attempting database migrations..."
+php artisan migrate --force 2>&1 || echo "Warning: Migrations failed or database not ready yet"
 
 # Start PHP-FPM in background
 echo "Starting PHP-FPM..."
