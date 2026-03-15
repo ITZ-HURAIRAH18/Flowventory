@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     libonig-dev \
+    libpq-dev \
     postgresql-client \
     && docker-php-ext-install pdo_pgsql mbstring zip \
     && docker-php-ext-enable pdo_pgsql \
