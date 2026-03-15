@@ -8,7 +8,10 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     libonig-dev \
-    && docker-php-ext-install pdo_mysql mbstring zip
+    postgresql-client \
+    && docker-php-ext-install pdo_pgsql mbstring zip \
+    && docker-php-ext-enable pdo_pgsql \
+    && a2enmod rewrite
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -16,18 +19,45 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy project files
-COPY . .
+# Copy composer files first (for better layer caching)
+COPY composer.json composer.lock* ./
 
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
+# Copy remaining project files
+COPY . .
+
+# Configure Apache to serve Laravel public directory
+RUN echo '<VirtualHost *:80>\n\
+    ServerName localhost\n\
+    DocumentRoot /var/www/html/public\n\
+    <Directory /var/www/html/public>\n\
+        AllowOverride All\n\
+        Require all granted\n\
+        <IfModule mod_rewrite.c>\n\
+            RewriteEngine On\n\
+            RewriteCond %{REQUEST_FILENAME} !-f\n\
+            RewriteCond %{REQUEST_FILENAME} !-d\n\
+            RewriteRule ^ index.php [QSA,L]\n\
+        </IfModule>\n\
+    </Directory>\n\
+    <FilesMatch \\.php$>\n\
+        SetHandler application/x-httpd-php\n\
+    </FilesMatch>\n\
+</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
 # Set Laravel permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose port (Railway assigns $PORT)
 ENV PORT 8080
 EXPOSE 8080
 
-# Start Laravel server
-CMD php artisan serve --host=0.0.0.0 --port=$PORT
+# Start with entrypoint script
+ENTRYPOINT ["docker-entrypoint.sh"]
