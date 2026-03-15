@@ -16,7 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-install pdo_pgsql mbstring zip \
     && docker-php-ext-enable pdo_pgsql \
     && a2enmod rewrite \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf \
+    && a2enmod mpm_prefork
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
