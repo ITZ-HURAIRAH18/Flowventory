@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
+import { useAppData } from '@/composables/useAppData'
 import { toast } from '@/composables/useToast'
 import api from '@/services/api'
 
@@ -13,6 +14,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ErrorBanner from '@/components/ui/ErrorBanner.vue'
 
 const router = useRouter()
+const { fetchBranches, fetchProducts } = useAppData()
 
 const branchId   = ref('')
 const productId  = ref('')
@@ -24,15 +26,20 @@ const globalError = ref('')
 const branches = ref([])
 const products = ref([])
 
+// Fetch from cache or API
 const fetchOptions = async () => {
   fetching.value = true
   try {
-    const [branchRes, productRes] = await Promise.all([
+    // Fetch branch/product options (will use cache if available)
+    const [branchesData, productsData] = await Promise.all([
       api.get('/my-branches'),
-      api.get('/all-products')
+      fetchProducts() // Uses cache
     ])
-    branches.value = branchRes.data.map(b => ({ label: b.name, value: b.id }))
-    const rawProducts = productRes.data.data || productRes.data
+    
+    const branchesResponse = branchesData.data
+    const rawProducts = Array.isArray(productsData) ? productsData : (productsData.data || productsData)
+    
+    branches.value = branchesResponse.map(b => ({ label: b.name, value: b.id }))
     products.value = rawProducts.map(p => ({ 
       label: `${p.name} ${p.sku ? `(${p.sku})` : ''}`, 
       value: p.id,

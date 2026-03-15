@@ -30,6 +30,7 @@ const fetchBranches = async () => {
   loadingBranches.value = true
   try {
     const res = await api.get('/my-branches')
+    // Use cache if possible, otherwise fetch
     branches.value = res.data.map(b => ({ label: b.name, value: b.id }))
   } catch (err) {
     globalError.value = 'Failed to load store registry.'

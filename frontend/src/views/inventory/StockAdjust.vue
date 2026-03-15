@@ -2,10 +2,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
+import { useAppData } from '@/composables/useAppData'
 import api from '@/services/api'
 import LoadingScreen from '@/components/LoadingScreen.vue'
 
 const router = useRouter()
+const { fetchProducts } = useAppData()
 
 const branchId   = ref('')
 const productId  = ref('')
@@ -20,12 +22,12 @@ const products = ref([])
 const fetchOptions = async () => {
   fetching.value = true
   try {
-    const [branchRes, productRes] = await Promise.all([
+    const [branchRes, productsData] = await Promise.all([
       api.get('/my-branches'),
-      api.get('/all-products')
+      fetchProducts() // Uses cache
     ])
     branches.value = branchRes.data
-    products.value = productRes.data.data || productRes.data
+    products.value = Array.isArray(productsData) ? productsData : (productsData.data || productsData)
   } catch (err) {
     error.value = 'Failed to load options. Please refresh.'
   } finally {

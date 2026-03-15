@@ -162,17 +162,32 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
-  const userStr = localStorage.getItem('user')
-  const user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null
-  const isAuthenticated = token && token !== 'null' && token !== 'undefined'
+// ⚡ Optimization: Cache auth state to avoid redundant checks
+let cachedToken = null
+let cachedUser = null
+let lastAuthCheck = 0
+const AUTH_CHECK_INTERVAL = 30000 // Only check every 30 seconds
 
-  // Refresh auth state to ensure composable is in sync
-  if (isAuthenticated) {
-    const { refreshAuth } = useAuth()
-    refreshAuth()
+router.beforeEach((to, from, next) => {
+  const currentTime = Date.now()
+  const shouldCheckAuth = currentTime - lastAuthCheck > AUTH_CHECK_INTERVAL
+  
+  // Only read localStorage if 30+ seconds have passed
+  let token = cachedToken
+  let user = cachedUser
+  
+  if (shouldCheckAuth || (cachedToken === null && cachedUser === null)) {
+    token = localStorage.getItem('token')
+    const userStr = localStorage.getItem('user')
+    user = (userStr && userStr !== 'undefined' && userStr !== 'null') ? JSON.parse(userStr) : null
+    
+    // Update cache
+    cachedToken = token
+    cachedUser = user
+    lastAuthCheck = currentTime
   }
+  
+  const isAuthenticated = token && token !== 'null' && token !== 'undefined'
 
   // 1. If logged in and trying to access Home or Login, go to Dashboard
   if (isAuthenticated && (to.path === '/' || to.path === '/login')) {
@@ -184,6 +199,8 @@ router.beforeEach((to, from, next) => {
     // Clear potentially corrupted token strings
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    cachedToken = null
+    cachedUser = null
     const { clearAuth } = useAuth()
     clearAuth()
     return next('/login')

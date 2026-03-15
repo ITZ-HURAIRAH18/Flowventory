@@ -8,16 +8,30 @@ class ProductService
 {
     public function list($search = null, $status = null, $perPage = null)
     {
-        $query = Product::when($search, function ($query) use ($search) {
+        $query = Product::query();
+
+        // Apply search filter - only on name and sku columns
+        if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
                   ->orWhere('sku', 'like', "%$search%");
             });
-        })
-        ->when($status, function ($query) use ($status) {
+        }
+
+        // Apply status filter with default to active
+        if ($status) {
             $query->where('status', $status);
-        })
-        ->latest();
+        } else {
+            // Default: show only active products unless specifically requesting all
+            if (is_null($status) && request()->has('status')) {
+                // Status explicitly set to null in request, show all
+            } else if (!request()->has('status')) {
+                // No status filter in request, default to active
+                $query->where('status', 'active');
+            }
+        }
+
+        $query->latest();
 
         // If perPage is provided, use pagination, otherwise return all
         if ($perPage) {

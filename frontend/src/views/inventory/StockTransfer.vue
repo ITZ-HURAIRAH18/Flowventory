@@ -2,6 +2,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import inventoryApi from '@/services/inventoryService'
+import { useAppData } from '@/composables/useAppData'
 import api from '@/services/api'
 
 // UI Components
@@ -12,6 +13,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ErrorBanner from '@/components/ui/ErrorBanner.vue'
 
 const router = useRouter()
+const { fetchProducts } = useAppData()
 
 const form = reactive({
   from_branch_id: '',
@@ -36,12 +38,12 @@ const products = ref([])
 const fetchOptions = async () => {
   fetching.value = true
   try {
-    const [branchRes, productRes] = await Promise.all([
+    const [branchRes, productsData] = await Promise.all([
       api.get('/my-branches'),
-      api.get('/all-products')
+      fetchProducts() // Uses cache
     ])
     branches.value = branchRes.data.map(b => ({ label: b.name, value: b.id }))
-    const rawProducts = productRes.data.data || productRes.data
+    const rawProducts = Array.isArray(productsData) ? productsData : (productsData.data || productsData)
     products.value = rawProducts.map(p => ({ 
       label: `${p.name} ${p.sku ? `(${p.sku})` : ''}`, 
       value: p.id,
