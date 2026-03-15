@@ -1,5 +1,5 @@
 # Use PHP-FPM with Alpine Linux (no Apache MPM conflicts!)
-# Build cache key: 2026-03-16-nginx-rebuild
+# Rebuilt: 2026-03-16 with debugging and explicit Nginx+FPM setup
 FROM php:8.2-fpm-alpine
 
 # Install Alpine dependencies
@@ -104,24 +104,42 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
 # Create entrypoint script with both Nginx and PHP-FPM
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/sh
-set -e
+set -x  # Debug mode - show every command
+
+echo "======================================"
+echo "Flowventory Container Starting"
+echo "======================================"
+echo "This is: PHP-FPM + Nginx (NOT Apache)"
+echo ""
 
 # Handle PORT environment variable for Railway
 PORT=${PORT:-8000}
+echo "PORT: $PORT"
 
 # Update Nginx to listen on the specified port
+echo "Configuring Nginx to listen on port $PORT..."
 sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
 
-# Run database migrations (with error handling - don't fail if DB isn't ready yet)
+# Run database migrations (with error handling)
 echo "Attempting database migrations..."
-php artisan migrate --force 2>&1 || echo "Warning: Migrations failed or database not ready yet"
+php artisan migrate --force 2>&1 || echo "⚠️  Migrations skipped (DB may not be ready)"
 
 # Start PHP-FPM in background
 echo "Starting PHP-FPM..."
 php-fpm -D
 
+# Verify processes are running
+sleep 1
+if pgrep -x "php-fpm" > /dev/null; then
+    echo "✓ PHP-FPM is running"
+else
+    echo "✗ PHP-FPM failed to start!"
+    exit 1
+fi
+
 # Start Nginx in foreground
-echo "Starting Nginx on port ${PORT}..."
+echo "Starting Nginx..."
+echo "======================================"
 exec nginx -g 'daemon off;'
 EOF
 
