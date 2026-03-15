@@ -54,8 +54,9 @@ RUN cat > /etc/apache2/sites-available/000-default.conf << 'EOF'
 </VirtualHost>
 EOF
 
-# Set Laravel permissions
-RUN chown -R www-data:www-data /var/www/html && \
+# Set Laravel permissions and create missing directories
+RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
+    chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
