@@ -19,7 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Clean up Apache MPM modules - remove all and enable only prefork
-RUN find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete && \
+RUN find /etc/apache2/mods-enabled -name "mpm_*" -delete && \
+    find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete && \
+    a2dismod mpm_event 2>/dev/null || true && \
+    a2dismod mpm_worker 2>/dev/null || true && \
+    a2dismod mpm_itk 2>/dev/null || true && \
     a2enmod mpm_prefork
 
 # Install Composer
@@ -73,10 +77,24 @@ RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Ensure only mpm_prefork is loaded - remove other MPM symlinks
+# CRITICAL: Fix Apache MPM conflict before starting Apache
+echo "Cleaning up Apache MPM modules..."
+find /etc/apache2/mods-enabled -name "mpm_*" -type f -delete 2>/dev/null || true
 find /etc/apache2/mods-enabled -name "mpm_*" -type l -delete 2>/dev/null || true
-ln -sf /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf
-ln -sf /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load
+rm -f /etc/apache2/mods-enabled/mpm_*.conf /etc/apache2/mods-enabled/mpm_*.load 2>/dev/null || true
+
+# Disable all MPM modules
+a2dismod mpm_event 2>/dev/null || true
+a2dismod mpm_worker 2>/dev/null || true  
+a2dismod mpm_itk 2>/dev/null || true
+
+# Enable only prefork
+echo "Enabling mpm_prefork..."
+a2enmod mpm_prefork
+
+# Verify configuration before starting
+echo "Testing Apache configuration..."
+apache2ctl configtest || (echo "Apache config test failed!" && exit 1)
 
 # Handle PORT environment variable for Railway
 PORT=${PORT:-8000}
@@ -85,9 +103,11 @@ if [ "$PORT" != "80" ]; then
 fi
 
 # Run migrations
+echo "Running database migrations..."
 php artisan migrate --force
 
 # Start Apache
+echo "Starting Apache..."
 exec apache2-foreground
 EOF
 
