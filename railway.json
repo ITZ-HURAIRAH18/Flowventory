@@ -5,7 +5,7 @@
     "context": ".",
     "dockerfile": "smart-inventory/Dockerfile",
     "buildArgs": {
-      "CACHEBUST": "sed-delimiter-fix-error-check-2026-03-16"
+      "CACHEBUST": "trust-proxies-middleware-https-2026-03-16"
     }
   }
 }
