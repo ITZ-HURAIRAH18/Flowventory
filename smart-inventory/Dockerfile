@@ -98,8 +98,8 @@ RUN cat > /start.sh << 'BASH_EOF'
 echo "=== Starting Flowventory Container ==="
 cd /var/www/html
 
-# Use Railway's PORT env var or default to 4000
-PORT=${PORT:-4000}
+# Railway target port
+PORT=4000
 echo "Listening on PORT: $PORT"
 
 # Update Nginx config with actual port
