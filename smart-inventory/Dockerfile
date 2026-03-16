@@ -102,6 +102,9 @@ RUN mkdir -p /var/www/html/public && \
     find /var/www/html/public -type f -exec chmod 644 {} \; && \
     find /var/www/html/public -type d -exec chmod 755 {} \;
 
+# Create a fallback index.php in case Laravel's doesn't exist
+RUN echo '<?php if (file_exists("/var/www/html/public/index.php")) { include "/var/www/html/public/index.php"; } else { phpinfo(); } ?>' > /var/www/html/public/index.php.fallback
+
 # Create a health check file in case Laravel doesn't start
 RUN mkdir -p /var/www/html/public && \
     echo '<?php echo json_encode(["status" => "ok", "time" => date("Y-m-d H:i:s")]); ?>' > /var/www/html/public/health.php && \
@@ -116,9 +119,31 @@ cd /var/www/html
 
 # Ensure directories exist with correct permissions
 mkdir -p /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Check if Laravel index.php exists
+if [ ! -f /var/www/html/public/index.php ]; then
+    echo "WARNING: Laravel public/index.php not found!"
+    echo "Creating fallback index.php..."
+    cat > /var/www/html/public/index.php << 'PHP_EOF'
+<?php
+echo "<h1>Flowventory Container is Running!</h1>";
+echo "<p>Status: PHP-FPM and Nginx are operational.</p>";
+if (is_dir('/var/www/html/public')) {
+    echo "<p>✓ Public directory exists</p>";
+    $files = scandir('/var/www/html/public');
+    echo "<p>Files: " . implode(", ", $files) . "</p>";
+}
+phpinfo();
+?>
+PHP_EOF
+fi
+
+# Set permissions
 chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
 chmod 775 /var/www/html/storage /var/www/html/bootstrap/cache
+chmod 644 /var/www/html/public/index.php 2>/dev/null || true
+find /var/www/html/public -type d -exec chmod 755 {} \; 2>/dev/null || true
 
 # Railway target port
 PORT=4000
