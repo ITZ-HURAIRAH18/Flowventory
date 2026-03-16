@@ -121,62 +121,53 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
 # Create entrypoint script with both Nginx and PHP-FPM
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/sh
-set -x  # Debug mode - show every command
 
 echo "======================================"
 echo "Flowventory Container Starting"
 echo "======================================"
-echo "This is: PHP-FPM + Nginx (NOT Apache)"
+echo "This is: PHP-FPM + Nginx"
 echo ""
 
 # Ensure we're in the correct working directory
 cd /var/www/html
 echo "Working directory: $(pwd)"
-ls -la artisan 2>&1 || echo "⚠️  artisan file not found in working directory"
-ls -la vendor/autoload.php 2>&1 || echo "⚠️  vendor/autoload.php not found"
+echo "Listing Laravel files:"
+ls -la | head -20
 echo ""
 
 # Handle PORT environment variable for Railway
-PORT=${PORT:-8000}
-echo "PORT: $PORT"
+PORT=${PORT:-8080}
+echo "Container PORT: $PORT"
 
 # Update Nginx to listen on the specified port
 echo "Configuring Nginx to listen on port $PORT..."
 sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
 
-# Generate app key if needed (only if artisan exists)
-if [ -f artisan ]; then
-    if [ ! -f .env ]; then
-        echo "Creating .env file..."
-        cp .env.example .env 2>/dev/null || echo "No .env.example found"
-    fi
-    
-    echo "Attempting database migrations..."
-    php artisan migrate --force 2>&1 || echo "⚠️  Migrations skipped (DB may not be ready)"
-    
-    echo "Generating app key if needed..."
-    php artisan key:generate --force 2>&1 || echo "⚠️  Could not generate app key"
-else
-    echo "⚠️  WARNING: artisan file not found. Skipping Laravel setup."
-    echo "The application will still try to serve files."
+# Create .env if it doesn't exist
+if [ ! -f .env ] && [ -f .env.example ]; then
+    echo "Creating .env from .env.example..."
+    cp .env.example .env
 fi
 
 # Start PHP-FPM in background
-echo ""
 echo "Starting PHP-FPM..."
 php-fpm -D
 
-# Verify processes are running
-sleep 1
+# Wait for PHP-FPM to start
+sleep 2
+
+# Verify PHP-FPM is running
 if pgrep -x "php-fpm" > /dev/null; then
     echo "✓ PHP-FPM is running"
 else
-    echo "✗ PHP-FPM failed to start!"
-    exit 1
+    echo "✗ PHP-FPM failed to start - attempting direct start"
+    php-fpm
 fi
 
 # Start Nginx in foreground
-echo "Starting Nginx..."
+echo "Starting Nginx on port $PORT..."
+echo "======================================"
+echo "Application is ready"
 echo "======================================"
 exec nginx -g 'daemon off;'
 EOF
