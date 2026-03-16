@@ -115,60 +115,26 @@ EOF
 RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
-    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache && \
-    chmod +x /var/www/html/artisan 2>/dev/null || echo "Note: artisan file may not exist yet"
+    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Create entrypoint script with both Nginx and PHP-FPM
+# Create minimal entrypoint script - NO artisan calls
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
 #!/bin/sh
 
-echo "======================================"
-echo "Flowventory Container Starting"
-echo "======================================"
-echo "This is: PHP-FPM + Nginx"
-echo ""
-
-# Ensure we're in the correct working directory
+# Just start the servers - nothing else
 cd /var/www/html
-echo "Working directory: $(pwd)"
-echo "Listing Laravel files:"
-ls -la | head -20
-echo ""
 
-# Handle PORT environment variable for Railway
+# Configure Nginx port
 PORT=${PORT:-8080}
-echo "Container PORT: $PORT"
-
-# Update Nginx to listen on the specified port
-echo "Configuring Nginx to listen on port $PORT..."
 sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
 
-# Create .env if it doesn't exist
-if [ ! -f .env ] && [ -f .env.example ]; then
-    echo "Creating .env from .env.example..."
-    cp .env.example .env
-fi
+# Start PHP-FPM as daemon
+php-fpm -D &
 
-# Start PHP-FPM in background
-echo "Starting PHP-FPM..."
-php-fpm -D
-
-# Wait for PHP-FPM to start
-sleep 2
-
-# Verify PHP-FPM is running
-if pgrep -x "php-fpm" > /dev/null; then
-    echo "✓ PHP-FPM is running"
-else
-    echo "✗ PHP-FPM failed to start - attempting direct start"
-    php-fpm
-fi
+# Wait a moment for PHP-FPM to start
+sleep 1
 
 # Start Nginx in foreground
-echo "Starting Nginx on port $PORT..."
-echo "======================================"
-echo "Application is ready"
-echo "======================================"
 exec nginx -g 'daemon off;'
 EOF
 
