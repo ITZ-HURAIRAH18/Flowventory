@@ -32,7 +32,7 @@ RUN echo "Installing Composer dependencies..." && \
         ls -la; \
         exit 1; \
     fi && \
-    composer install --no-dev --optimize-autoloader --no-interaction && \
+    composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs && \
     if [ ! -f vendor/autoload.php ]; then \
         echo "ERROR: vendor/autoload.php not created!"; \
         exit 1; \
