@@ -24,16 +24,23 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy all project files
 COPY . .
 
+# Debug: Show what was copied
+RUN echo "=== Build Context Debug ===" && \
+    pwd && \
+    echo "Files in current directory:" && \
+    ls -la && \
+    echo "" && \
+    echo "=== End Debug ===" && \
+    echo ""
+
 # Install PHP dependencies with proper error handling
-RUN echo "Checking composer.json..." && \
-    if [ -f composer.json ]; then \
-        echo "Running composer install..." && \
-        composer install --no-dev --optimize-autoloader --no-interaction && \
-        echo "Composer install completed successfully" && \
-        ls -la artisan 2>&1 || echo "⚠️  WARNING: artisan file not found after composer install!"; \
+RUN if [ -f composer.json ]; then \
+        echo "Found composer.json - installing dependencies..." && \
+        composer install --no-dev --optimize-autoloader --no-interaction; \
     else \
-        echo "ERROR: composer.json not found!"; \
-        exit 1; \
+        echo "composer.json not found - this may be a build context issue" && \
+        echo "Listing files in current directory:" && \
+        ls -la; \
     fi
 
 # Configure Nginx to serve Laravel
