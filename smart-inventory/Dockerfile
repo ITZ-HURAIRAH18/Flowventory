@@ -87,7 +87,6 @@ http {
         location ~ /\. {
             deny all;
         }
-        }
     }
 }
 NGINX_EOF
