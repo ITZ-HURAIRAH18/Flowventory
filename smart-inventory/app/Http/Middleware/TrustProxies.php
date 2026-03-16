@@ -22,6 +22,9 @@ class TrustProxies extends Middleware
         \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR |
         \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST |
         \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO |
-        \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT |
         \Illuminate\Http\Request::HEADER_X_FORWARDED_AWS_ELB;
+        // NOTE: HEADER_X_FORWARDED_PORT is intentionally excluded.
+        // Railway sends X-Forwarded-Port: 4000 (the internal container port),
+        // which causes Laravel to generate asset URLs with :4000 appended.
+        // Railway's public proxy terminates on port 443 (standard HTTPS) externally.
 }

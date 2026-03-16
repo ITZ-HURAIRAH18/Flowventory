@@ -260,9 +260,16 @@ if [ ! -d /var/www/html/vendor ]; then
 fi
 echo "✓ Vendor directory exists"
 
-# Railway target port
-PORT=4000
+# Railway target port (read from env, default 4000)
+PORT="${PORT:-4000}"
 echo "Listening on PORT: $PORT"
+
+# Ensure ASSET_URL is set (same as APP_URL, no port)
+if ! grep -q "^ASSET_URL=" /var/www/html/.env; then
+    echo "ASSET_URL=${APP_URL}" >> /var/www/html/.env
+else
+    sed -i "s|^ASSET_URL=.*|ASSET_URL=${APP_URL}|" /var/www/html/.env
+fi
 
 # Update Nginx config with actual port
 if sed -i "s/listen 8080/listen ${PORT}/g" /etc/nginx/nginx.conf; then
