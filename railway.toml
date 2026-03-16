@@ -4,5 +4,4 @@ context = "smart-inventory"
 dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "apache2-foreground"
 healthchecks = { enabled = false }
