@@ -58,14 +58,25 @@ http {
         server_name _;
         root /var/www/html/public;
         
-        index index.php index.html;
+        index index.php index.html index.htm;
         charset utf-8;
+        
+        error_page 403 /index.php;
+        error_page 404 /index.php;
         
         location / {
             try_files $uri $uri/ /index.php?$query_string;
         }
         
+        location ~ /health\.php$ {
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index health.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+        
         location ~ \.php$ {
+            try_files $uri =404;
             fastcgi_pass 127.0.0.1:9000;
             fastcgi_index index.php;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -76,15 +87,21 @@ http {
         location ~ /\. {
             deny all;
         }
+        }
     }
 }
 NGINX_EOF
 
-# Set permissions
-RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
+# Set permissions - CRITICAL for 403 fix
+RUN mkdir -p /var/www/html/public && \
+    mkdir -p /var/www/html/storage && \
+    mkdir -p /var/www/html/bootstrap/cache && \
     chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
-    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+    chmod -R 775 /var/www/html/storage && \
+    chmod -R 775 /var/www/html/bootstrap/cache && \
+    find /var/www/html/public -type f -exec chmod 644 {} \; && \
+    find /var/www/html/public -type d -exec chmod 755 {} \;
 
 # Create a health check file in case Laravel doesn't start
 RUN mkdir -p /var/www/html/public && \
@@ -97,6 +114,12 @@ RUN cat > /start.sh << 'BASH_EOF'
 
 echo "=== Starting Flowventory Container ==="
 cd /var/www/html
+
+# Ensure directories exist with correct permissions
+mkdir -p /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
+chmod 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Railway target port
 PORT=4000
