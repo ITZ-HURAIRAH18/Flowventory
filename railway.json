@@ -5,7 +5,7 @@
     "context": ".",
     "dockerfile": "smart-inventory/Dockerfile",
     "buildArgs": {
-      "CACHEBUST": "trusted-proxies-https-fix-2026-03-16"
+      "CACHEBUST": "app-key-generation-fix-2026-03-16"
     }
   }
 }

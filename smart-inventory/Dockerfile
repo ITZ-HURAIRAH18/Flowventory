@@ -197,11 +197,13 @@ if [ ! -f /var/www/html/.env ]; then
     fi
 fi
 
-# Generate APP_KEY if not set (handles migrations and encryption)
+# Ensure APP_KEY exists - generate if empty
 if grep -q "^APP_KEY=$" /var/www/html/.env; then
     echo "Generating APP_KEY..."
-    cd /var/www/html && php artisan key:generate --force 2>&1 || echo "Note: artisan key:generate may have failed, but application may still work"
-    cd /var/www/html
+    # Generate a base64 encoded 32-byte key (Laravel format)
+    APP_KEY="base64:$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+    sed -i "s/^APP_KEY=$/APP_KEY=${APP_KEY//&/\\&}/" /var/www/html/.env
+    echo "✓ APP_KEY generated"
 fi
 
 # Ensure directories exist with correct permissions
