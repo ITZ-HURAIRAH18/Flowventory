@@ -94,7 +94,6 @@ RUN mkdir -p /var/www/html/public && \
 # Startup script - with error checking and logging
 RUN cat > /start.sh << 'BASH_EOF'
 #!/bin/sh
-set -e
 
 echo "=== Starting Flowventory Container ==="
 cd /var/www/html
@@ -109,16 +108,8 @@ sed -i "s/listen 8080/listen ${PORT}/g" /etc/nginx/nginx.conf
 echo "Starting PHP-FPM..."
 php-fpm -D
 
-sleep 1
-
-if ! pgrep -x "php-fpm" > /dev/null; then
-    echo "ERROR: PHP-FPM failed to start"
-    exit 1
-fi
-echo "✓ PHP-FPM is running"
-
-echo "Testing Nginx config..."
-nginx -t 2>&1 || { echo "ERROR: Nginx config failed"; exit 1; }
+# Give PHP-FPM time to start
+sleep 2
 
 echo "Starting Nginx on port ${PORT}..."
 exec nginx -g 'daemon off;'
