@@ -17,10 +17,19 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy app
 COPY . .
 
+# DEBUG: List what was copied
+RUN echo "=== Files copied into container ===" && \
+    pwd && \
+    ls -la | head -20 && \
+    echo "Looking for composer files..." && \
+    ls -la composer.* 2>&1 || echo "composer.* not found"
+
 # Install PHP packages - MUST SUCCEED
 RUN echo "Installing Composer dependencies..." && \
     if [ ! -f composer.json ]; then \
         echo "ERROR: composer.json not found!"; \
+        echo "Files in current directory:"; \
+        ls -la; \
         exit 1; \
     fi && \
     composer install --no-dev --optimize-autoloader --no-interaction && \

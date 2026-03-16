@@ -9,3 +9,6 @@ npm-debug.log
 !README.md
 tests
 .phpunit.result.cache
+# CRITICAL: DO NOT IGNORE THESE
+!composer.json
+!composer.lock
