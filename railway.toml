@@ -1,7 +1,7 @@
 [build]
 builder = "dockerfile"
-context = "smart-inventory"
-dockerfile = "Dockerfile"
+context = "."
+dockerfile = "smart-inventory/Dockerfile"
 
 [deploy]
 startCommand = "/start.sh"

@@ -14,8 +14,8 @@ WORKDIR /var/www/html
 # Copy Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy app
-COPY . .
+# Copy app from smart-inventory context (since context is root)
+COPY smart-inventory/ /var/www/html/
 
 # DEBUG: List what was copied
 RUN echo "=== Files copied into container ===" && \
