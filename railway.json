@@ -5,7 +5,7 @@
     "context": ".",
     "dockerfile": "smart-inventory/Dockerfile",
     "buildArgs": {
-      "CACHEBUST": "vite-manifest-fix-2026-03-16"
+      "CACHEBUST": "node-vite-build-2026-03-16"
     }
   }
 }

@@ -12,3 +12,8 @@ tests
 # CRITICAL: DO NOT IGNORE THESE
 !composer.json
 !composer.lock
+!package.json
+!package-lock.json
+!vite.config.js
+!postcss.config.js
+!tailwind.config.js

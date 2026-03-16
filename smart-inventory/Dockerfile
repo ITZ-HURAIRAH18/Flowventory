@@ -40,9 +40,25 @@ RUN echo "Installing Composer dependencies..." && \
     echo "✓ Composer dependencies installed successfully" && \
     ls -la vendor/autoload.php
 
-# Create Vite manifest directory and minimal manifest
+# Install Node.js and npm for frontend asset building
+RUN apk add --no-cache nodejs npm && \
+    echo "✓ Node.js and npm installed"
+
+# Build frontend assets with Vite
+RUN echo "Building frontend assets with Vite..." && \
+    npm install && \
+    npm run build && \
+    echo "✓ Frontend assets built successfully" && \
+    ls -la public/build/ 2>&1 || echo "Build directory may not exist yet"
+
+# Create Vite manifest directory (if build didn't create it)
 RUN mkdir -p /var/www/html/public/build && \
-    echo '{}' > /var/www/html/public/build/manifest.json
+    if [ ! -f /var/www/html/public/build/manifest.json ]; then \
+        echo "ERROR: manifest.json not created by Vite build!"; \
+        exit 1; \
+    fi && \
+    echo "✓ Vite manifest exists" && \
+    cat /var/www/html/public/build/manifest.json | head -20
 
 # Create Laravel public/index.php explicitly (guarantee it exists)
 RUN mkdir -p /var/www/html/public && \
