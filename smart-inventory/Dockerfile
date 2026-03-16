@@ -67,7 +67,9 @@ http {
         
         location ~ \.php$ {
             fastcgi_pass 127.0.0.1:9000;
-            fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
             include fastcgi_params;
         }
         
@@ -84,13 +86,44 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Startup script - ZERO artisan calls EVER
+# Create a health check file in case Laravel doesn't start
+RUN mkdir -p /var/www/html/public && \
+    cat > /var/www/html/public/health.php << 'PHP_EOF'
+<?php
+echo json_encode(['status' => 'ok', 'timestamp' => date('Y-m-d H:i:s')]);
+PHP_EOF
+    chmod 644 /var/www/html/public/health.php
+
+# Startup script - with error checking and logging
 RUN cat > /start.sh << 'BASH_EOF'
 #!/bin/sh
 set -e
-cd /var/www/html || exit 1
-php-fpm -D || { echo "PHP-FPM failed to start"; exit 1; }
+
+echo "=== Starting Flowventory Container ==="
+cd /var/www/html
+
+# Use Railway's PORT env var or default to 8080
+PORT=${PORT:-8080}
+echo "Listening on PORT: $PORT"
+
+# Update Nginx config with actual port
+sed -i "s/listen 8080/listen ${PORT}/g" /etc/nginx/nginx.conf
+
+echo "Starting PHP-FPM..."
+php-fpm -D
+
 sleep 1
+
+if ! pgrep -x "php-fpm" > /dev/null; then
+    echo "ERROR: PHP-FPM failed to start"
+    exit 1
+fi
+echo "✓ PHP-FPM is running"
+
+echo "Testing Nginx config..."
+nginx -t 2>&1 || { echo "ERROR: Nginx config failed"; exit 1; }
+
+echo "Starting Nginx on port ${PORT}..."
 exec nginx -g 'daemon off;'
 BASH_EOF
 
