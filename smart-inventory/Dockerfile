@@ -117,32 +117,39 @@ RUN cat > /start.sh << 'BASH_EOF'
 echo "=== Starting Flowventory Container ==="
 cd /var/www/html
 
+# Create .env if missing
+if [ ! -f /var/www/html/.env ]; then
+    echo "Creating .env from .env.example..."
+    if [ -f /var/www/html/.env.example ]; then
+        cp /var/www/html/.env.example /var/www/html/.env
+    fi
+fi
+
 # Ensure directories exist with correct permissions
 mkdir -p /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Check if Laravel index.php exists
+# Check actual Laravel index.php
 if [ ! -f /var/www/html/public/index.php ]; then
-    echo "WARNING: Laravel public/index.php not found!"
-    echo "Creating fallback index.php..."
+    echo "WARNING: Laravel public/index.php not found in build!"
+    echo "Creating fallback diagnostic index.php..."
     cat > /var/www/html/public/index.php << 'PHP_EOF'
 <?php
-echo "<h1>Flowventory Container is Running!</h1>";
-echo "<p>Status: PHP-FPM and Nginx are operational.</p>";
-if (is_dir('/var/www/html/public')) {
-    echo "<p>✓ Public directory exists</p>";
-    $files = scandir('/var/www/html/public');
-    echo "<p>Files: " . implode(", ", $files) . "</p>";
-}
+echo "<h1>Flowventory is Running</h1>";
+echo "<p>Laravel public/index.php was not found in the build.</p>";
+echo "<p>This is a fallback page. Check your Laravel setup.</p>";
+echo "<hr>";
 phpinfo();
 ?>
 PHP_EOF
+else
+    echo "✓ Found Laravel public/index.php"
 fi
 
 # Set permissions
 chown -R www-data:www-data /var/www/html
 chmod -R 755 /var/www/html
 chmod 775 /var/www/html/storage /var/www/html/bootstrap/cache
-chmod 644 /var/www/html/public/index.php 2>/dev/null || true
+chmod 644 /var/www/html/public/*.php 2>/dev/null || true
 find /var/www/html/public -type d -exec chmod 755 {} \; 2>/dev/null || true
 
 # Railway target port
