@@ -146,6 +146,13 @@ http {
             fastcgi_index index.php;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             fastcgi_param PATH_INFO $fastcgi_path_info;
+            
+            # Pass through X-Forwarded headers for HTTPS/proxy detection
+            fastcgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
+            fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
+            fastcgi_param HTTP_X_FORWARDED_HOST $server_name;
+            fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+            
             include fastcgi_params;
         }
         
@@ -188,6 +195,13 @@ if [ ! -f /var/www/html/.env ]; then
     if [ -f /var/www/html/.env.example ]; then
         cp /var/www/html/.env.example /var/www/html/.env
     fi
+fi
+
+# Generate APP_KEY if not set (handles migrations and encryption)
+if grep -q "^APP_KEY=$" /var/www/html/.env; then
+    echo "Generating APP_KEY..."
+    cd /var/www/html && php artisan key:generate --force 2>&1 || echo "Note: artisan key:generate may have failed, but application may still work"
+    cd /var/www/html
 fi
 
 # Ensure directories exist with correct permissions
