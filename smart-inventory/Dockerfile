@@ -24,8 +24,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy all project files
 COPY . .
 
-# Install PHP dependencies
-RUN if [ -f composer.json ]; then composer install --no-dev --optimize-autoloader; fi
+# Install PHP dependencies with proper error handling
+RUN echo "Checking composer.json..." && \
+    if [ -f composer.json ]; then \
+        echo "Running composer install..." && \
+        composer install --no-dev --optimize-autoloader --no-interaction && \
+        echo "Composer install completed successfully" && \
+        ls -la artisan 2>&1 || echo "⚠️  WARNING: artisan file not found after composer install!"; \
+    else \
+        echo "ERROR: composer.json not found!"; \
+        exit 1; \
+    fi
 
 # Configure Nginx to serve Laravel
 RUN cat > /etc/nginx/nginx.conf << 'EOF'
@@ -99,7 +108,8 @@ EOF
 RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chown -R www-data:www-data /var/www/html && \
     chmod -R 755 /var/www/html && \
-    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+    chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache && \
+    chmod +x /var/www/html/artisan 2>/dev/null || echo "Note: artisan file may not exist yet"
 
 # Create entrypoint script with both Nginx and PHP-FPM
 RUN cat > /usr/local/bin/docker-entrypoint.sh << 'EOF'
@@ -112,6 +122,13 @@ echo "======================================"
 echo "This is: PHP-FPM + Nginx (NOT Apache)"
 echo ""
 
+# Ensure we're in the correct working directory
+cd /var/www/html
+echo "Working directory: $(pwd)"
+ls -la artisan 2>&1 || echo "⚠️  artisan file not found in working directory"
+ls -la vendor/autoload.php 2>&1 || echo "⚠️  vendor/autoload.php not found"
+echo ""
+
 # Handle PORT environment variable for Railway
 PORT=${PORT:-8000}
 echo "PORT: $PORT"
@@ -120,11 +137,25 @@ echo "PORT: $PORT"
 echo "Configuring Nginx to listen on port $PORT..."
 sed -i "s/listen 80/listen ${PORT}/g" /etc/nginx/nginx.conf
 
-# Run database migrations (with error handling)
-echo "Attempting database migrations..."
-php artisan migrate --force 2>&1 || echo "⚠️  Migrations skipped (DB may not be ready)"
+# Generate app key if needed (only if artisan exists)
+if [ -f artisan ]; then
+    if [ ! -f .env ]; then
+        echo "Creating .env file..."
+        cp .env.example .env 2>/dev/null || echo "No .env.example found"
+    fi
+    
+    echo "Attempting database migrations..."
+    php artisan migrate --force 2>&1 || echo "⚠️  Migrations skipped (DB may not be ready)"
+    
+    echo "Generating app key if needed..."
+    php artisan key:generate --force 2>&1 || echo "⚠️  Could not generate app key"
+else
+    echo "⚠️  WARNING: artisan file not found. Skipping Laravel setup."
+    echo "The application will still try to serve files."
+fi
 
 # Start PHP-FPM in background
+echo ""
 echo "Starting PHP-FPM..."
 php-fpm -D
 
