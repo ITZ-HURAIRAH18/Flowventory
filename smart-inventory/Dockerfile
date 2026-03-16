@@ -17,12 +17,33 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy app
 COPY . .
 
-# Verify Laravel files exist
-RUN echo "Checking for public/index.php..." && \
-    ls -la public/index.php 2>&1 || echo "WARNING: public/index.php not found after COPY"
-
 # Install PHP packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction 2>&1 || true
+
+# Create Laravel public/index.php explicitly (guarantee it exists)
+RUN mkdir -p /var/www/html/public && \
+    cat > /var/www/html/public/index.php << 'LARAVEL_INDEX_EOF'
+<?php
+
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
+
+define('LARAVEL_START', microtime(true));
+
+// Determine if the application is in maintenance mode...
+if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
+    require $maintenance;
+}
+
+// Register the Composer autoloader...
+require __DIR__.'/../vendor/autoload.php';
+
+// Bootstrap Laravel and handle the request...
+/** @var Application $app */
+$app = require_once __DIR__.'/../bootstrap/app.php';
+
+$app->handleRequest(Request::capture());
+LARAVEL_INDEX_EOF
 
 # Nginx config
 RUN cat > /etc/nginx/nginx.conf << 'NGINX_EOF'
@@ -134,20 +155,10 @@ mkdir -p /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cach
 
 # Check actual Laravel index.php
 if [ -f /var/www/html/public/index.php ]; then
-    echo "✓ Found Laravel public/index.php"
-    # Don't overwrite the real Laravel file
+    INDEX_SIZE=$(wc -c < /var/www/html/public/index.php)
+    echo "✓ Laravel public/index.php exists (${INDEX_SIZE} bytes)"
 else
-    echo "WARNING: Laravel public/index.php not found in build!"
-    echo "Creating fallback diagnostic index.php..."
-    cat > /var/www/html/public/index.php << 'PHP_EOF'
-<?php
-echo "<h1>Flowventory is Running</h1>";
-echo "<p>Laravel public/index.php was not found in the build.</p>";
-echo "<p>This is a fallback page. Check your Laravel setup.</p>";
-echo "<hr>";
-phpinfo();
-?>
-PHP_EOF
+    echo "ERROR: public/index.php still missing!"
 fi
 
 # Set permissions
