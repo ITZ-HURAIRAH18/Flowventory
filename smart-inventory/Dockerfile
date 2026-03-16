@@ -17,6 +17,10 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy app
 COPY . .
 
+# Verify Laravel files exist
+RUN echo "Checking for public/index.php..." && \
+    ls -la public/index.php 2>&1 || echo "WARNING: public/index.php not found after COPY"
+
 # Install PHP packages
 RUN composer install --no-dev --optimize-autoloader --no-interaction 2>&1 || true
 
@@ -129,7 +133,10 @@ fi
 mkdir -p /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Check actual Laravel index.php
-if [ ! -f /var/www/html/public/index.php ]; then
+if [ -f /var/www/html/public/index.php ]; then
+    echo "✓ Found Laravel public/index.php"
+    # Don't overwrite the real Laravel file
+else
     echo "WARNING: Laravel public/index.php not found in build!"
     echo "Creating fallback diagnostic index.php..."
     cat > /var/www/html/public/index.php << 'PHP_EOF'
@@ -141,8 +148,6 @@ echo "<hr>";
 phpinfo();
 ?>
 PHP_EOF
-else
-    echo "✓ Found Laravel public/index.php"
 fi
 
 # Set permissions
