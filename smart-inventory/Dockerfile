@@ -202,8 +202,13 @@ if grep -q "^APP_KEY=$" /var/www/html/.env; then
     echo "Generating APP_KEY..."
     # Generate a base64 encoded 32-byte key (Laravel format)
     APP_KEY="base64:$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
-    sed -i "s/^APP_KEY=$/APP_KEY=${APP_KEY//&/\\&}/" /var/www/html/.env
-    echo "✓ APP_KEY generated"
+    # Use | as sed delimiter to avoid conflicts with base64 special chars (/, +, =)
+    if sed -i "s|^APP_KEY=$|APP_KEY=${APP_KEY}|" /var/www/html/.env; then
+        echo "✓ APP_KEY generated successfully"
+    else
+        echo "ERROR: Failed to generate APP_KEY"
+        exit 1
+    fi
 fi
 
 # Ensure directories exist with correct permissions
@@ -237,10 +242,20 @@ PORT=4000
 echo "Listening on PORT: $PORT"
 
 # Update Nginx config with actual port
-sed -i "s/listen 8080/listen ${PORT}/g" /etc/nginx/nginx.conf
+if sed -i "s/listen 8080/listen ${PORT}/g" /etc/nginx/nginx.conf; then
+    echo "✓ Nginx port updated to ${PORT}"
+else
+    echo "ERROR: Failed to update Nginx config"
+    exit 1
+fi
 
 echo "Starting PHP-FPM..."
-php-fpm -D
+if php-fpm -D; then
+    echo "✓ PHP-FPM started"
+else
+    echo "ERROR: Failed to start PHP-FPM"
+    exit 1
+fi
 
 # Give PHP-FPM time to start
 sleep 2
