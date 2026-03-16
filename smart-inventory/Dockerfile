@@ -1,6 +1,6 @@
-# FRESH BUILD - NO CACHE
-# Simple PHP-FPM + Nginx for Laravel
-FROM php:8.2-fpm-alpine
+# EMERGENCY FRESH BUILD 
+# Force complete cache bust by using explicit PHP version tag
+FROM php:8.2.17-fpm-alpine3.19
 
 LABEL version="3.0-final" description="Clean Flowventory Laravel deployment"
 
@@ -84,15 +84,18 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
     chmod -R 755 /var/www/html && \
     chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Startup script - NO ARTISAN CALLS
+# Startup script - ZERO artisan calls EVER
 RUN cat > /start.sh << 'BASH_EOF'
 #!/bin/sh
-cd /var/www/html
-php-fpm -D
+set -e
+cd /var/www/html || exit 1
+php-fpm -D || { echo "PHP-FPM failed to start"; exit 1; }
+sleep 1
 exec nginx -g 'daemon off;'
 BASH_EOF
 
-RUN chmod +x /start.sh
+RUN chmod +x /start.sh && \
+    chmod +x /usr/local/sbin/php-fpm
 
 EXPOSE 8080
 

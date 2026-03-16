@@ -5,7 +5,7 @@
     "context": "smart-inventory",
     "dockerfile": "Dockerfile",
     "buildArgs": {
-      "CACHEBUST": "2026-03-16-FRESH-NO-ARTISAN-v10"
+      "CACHEBUST": "EMERGENCY-2026-03-16-ALTERNATE-BASE-IMAGE-NO-ARTISAN-FINAL"
     }
   }
 }
