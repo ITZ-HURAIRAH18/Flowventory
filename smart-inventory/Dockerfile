@@ -88,10 +88,7 @@ RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache && \
 
 # Create a health check file in case Laravel doesn't start
 RUN mkdir -p /var/www/html/public && \
-    cat > /var/www/html/public/health.php << 'PHP_EOF'
-<?php
-echo json_encode(['status' => 'ok', 'timestamp' => date('Y-m-d H:i:s')]);
-PHP_EOF
+    echo '<?php echo json_encode(["status" => "ok", "time" => date("Y-m-d H:i:s")]); ?>' > /var/www/html/public/health.php && \
     chmod 644 /var/www/html/public/health.php
 
 # Startup script - with error checking and logging
@@ -102,8 +99,8 @@ set -e
 echo "=== Starting Flowventory Container ==="
 cd /var/www/html
 
-# Use Railway's PORT env var or default to 8080
-PORT=${PORT:-8080}
+# Use Railway's PORT env var or default to 4000
+PORT=${PORT:-4000}
 echo "Listening on PORT: $PORT"
 
 # Update Nginx config with actual port
@@ -130,6 +127,8 @@ BASH_EOF
 RUN chmod +x /start.sh && \
     chmod +x /usr/local/sbin/php-fpm
 
-EXPOSE 8080
+EXPOSE 4000
+
+ENV PORT=4000
 
 CMD ["/start.sh"]

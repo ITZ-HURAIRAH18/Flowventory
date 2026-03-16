@@ -6,3 +6,6 @@ dockerfile = "Dockerfile"
 [deploy]
 startCommand = "/start.sh"
 healthchecks = { enabled = false }
+
+[env]
+PORT = "4000"
