@@ -40,6 +40,10 @@ RUN echo "Installing Composer dependencies..." && \
     echo "✓ Composer dependencies installed successfully" && \
     ls -la vendor/autoload.php
 
+# Create Vite manifest directory and minimal manifest
+RUN mkdir -p /var/www/html/public/build && \
+    echo '{}' > /var/www/html/public/build/manifest.json
+
 # Create Laravel public/index.php explicitly (guarantee it exists)
 RUN mkdir -p /var/www/html/public && \
     cat > /var/www/html/public/index.php << 'LARAVEL_INDEX_EOF'
