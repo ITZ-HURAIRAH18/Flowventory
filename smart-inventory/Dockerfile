@@ -17,8 +17,19 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Copy app
 COPY . .
 
-# Install PHP packages
-RUN composer install --no-dev --optimize-autoloader --no-interaction 2>&1 || true
+# Install PHP packages - MUST SUCCEED
+RUN echo "Installing Composer dependencies..." && \
+    if [ ! -f composer.json ]; then \
+        echo "ERROR: composer.json not found!"; \
+        exit 1; \
+    fi && \
+    composer install --no-dev --optimize-autoloader --no-interaction && \
+    if [ ! -f vendor/autoload.php ]; then \
+        echo "ERROR: vendor/autoload.php not created!"; \
+        exit 1; \
+    fi && \
+    echo "✓ Composer dependencies installed successfully" && \
+    ls -la vendor/autoload.php
 
 # Create Laravel public/index.php explicitly (guarantee it exists)
 RUN mkdir -p /var/www/html/public && \
@@ -167,6 +178,14 @@ chmod -R 755 /var/www/html
 chmod 775 /var/www/html/storage /var/www/html/bootstrap/cache
 chmod 644 /var/www/html/public/*.php 2>/dev/null || true
 find /var/www/html/public -type d -exec chmod 755 {} \; 2>/dev/null || true
+
+# CRITICAL: Verify vendor exists
+if [ ! -d /var/www/html/vendor ]; then
+    echo "ERROR: vendor directory not found!"
+    ls -la /var/www/html/ | head -20
+    exit 1
+fi
+echo "✓ Vendor directory exists"
 
 # Railway target port
 PORT=4000
