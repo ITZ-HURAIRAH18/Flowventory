@@ -5,7 +5,7 @@
     "context": ".",
     "dockerfile": "smart-inventory/Dockerfile",
     "buildArgs": {
-      "CACHEBUST": "trust-proxies-middleware-https-2026-03-16"
+      "CACHEBUST": "app-url-runtime-config-2026-03-16"
     }
   }
 }

@@ -147,11 +147,27 @@ http {
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             fastcgi_param PATH_INFO $fastcgi_path_info;
             
-            # Pass through X-Forwarded headers for HTTPS/proxy detection
+            # Pass through headers for proxy detection (use existing headers from upstream proxy)
+            # Only set X-Forwarded-* if not already set by the proxy
+            set $forwarded_proto $http_x_forwarded_proto;
+            set $forwarded_host $http_x_forwarded_host;
+            set $forwarded_port $http_x_forwarded_port;
+            
+            # Fallback to local values if not proxied
+            if ($forwarded_proto = "") {
+                set $forwarded_proto $scheme;
+            }
+            if ($forwarded_host = "") {
+                set $forwarded_host $server_name;
+            }
+            if ($forwarded_port = "") {
+                set $forwarded_port $server_port;
+            }
+            
             fastcgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
-            fastcgi_param HTTP_X_FORWARDED_PROTO $scheme;
-            fastcgi_param HTTP_X_FORWARDED_HOST $server_name;
-            fastcgi_param HTTP_X_FORWARDED_PORT $server_port;
+            fastcgi_param HTTP_X_FORWARDED_PROTO $forwarded_proto;
+            fastcgi_param HTTP_X_FORWARDED_HOST $forwarded_host;
+            fastcgi_param HTTP_X_FORWARDED_PORT $forwarded_port;
             
             include fastcgi_params;
         }
@@ -196,6 +212,13 @@ if [ ! -f /var/www/html/.env ]; then
         cp /var/www/html/.env.example /var/www/html/.env
     fi
 fi
+
+# Set APP_URL based on environment or use production URL
+if [ -z "$APP_URL" ]; then
+    APP_URL="https://flowventory-production.up.railway.app"
+fi
+echo "Setting APP_URL=$APP_URL"
+sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|" /var/www/html/.env
 
 # Ensure APP_KEY exists - generate if empty
 if grep -q "^APP_KEY=$" /var/www/html/.env; then
